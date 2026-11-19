@@ -1,0 +1,33 @@
+# The sample charter of the spec, section 5.1, with the checks it leaves out written in.
+id: migrate-customers
+version: 1
+goal: "Migrate customers_v1 to the customers_v2 schema and remove duplicate customers."
+success:
+  - { id: s1, text: "Every non-duplicate source row exists in customers_v2.", check: row-conservation }
+  - { id: s2, text: "No customer appears twice in customers_v2.", check: no-duplicates }
+  - { id: s3, text: "Merged records keep the most recent contact details.", check: null }
+scope:
+  allow_paths: ["migration/**", "reports/**"]
+  deny_paths: ["tests/**", ".claude/**"]
+  allow_commands: ["sqlite3 *", "node migration/*", "npm test"]
+  network: false
+budget: { max_cost_usd: 3.00, max_turns: 120, max_minutes: 45 }
+stages:
+  - { id: profile, title: "Profile the source data", exit_checks: [row-count-recorded] }
+  - { id: map, title: "Map the schema", exit_checks: [mapping-complete] }
+  - { id: dedup, title: "Deduplicate", exit_checks: [dedup-plan-valid] }
+  - { id: migrate, title: "Run the migration", exit_checks: [row-conservation, no-duplicates], irreversible: true }
+  - { id: verify, title: "Verify and report", exit_checks: [row-conservation, no-pii-in-logs] }
+checks:
+  - { id: row-count-recorded, type: command, run: "node checks/row-count-recorded.js", when: checkpoint, fault: "node checks/faults/no-count.js" }
+  - { id: mapping-complete, type: command, run: "node checks/mapping-complete.js", when: checkpoint, fault: "node checks/faults/missing-column.js" }
+  - { id: row-conservation, type: command, run: "node checks/row-conservation.js", when: checkpoint, fault: "node checks/faults/drop-row.js" }
+  - { id: dedup-plan-valid, type: command, run: "node checks/dedup-plan-valid.js", when: checkpoint, fault: "node checks/faults/bad-plan.js" }
+  - { id: no-duplicates, type: command, run: "node checks/no-duplicates.js", when: checkpoint, fault: "node checks/faults/add-duplicate.js" }
+  - { id: no-pii-in-logs, type: pattern, paths: ["reports/**", "*.log"], deny: "email", when: every_action }
+drift_rules:
+  - { id: goal-1, dimension: goal, source: generated, text: "Work serves migration and deduplication only." }
+  - { id: scope-1, dimension: scope, source: generated, text: "Only files and tables named in scope are changed." }
+thresholds: { warn: 0.35, pause: 0.6 }
+irreversible: ["DROP TABLE *", "node migration/apply.js *"]
+escalation: { on_pause: operator }

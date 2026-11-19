@@ -38,28 +38,26 @@
 
   <section class="verdicts" id="verdicts" aria-label="The two verdicts of the trust receipt"></section>
 
-  <nav class="story" id="story" aria-label="What happened in this run"></nav>
-
   <section class="panel map-panel" aria-labelledby="map-title">
     <div class="panel-head">
       <h2 id="map-title">Run map</h2>
-      <ul class="legend" id="legend" aria-label="Legend"></ul>
+      <div class="levels" id="levels"></div>
     </div>
+    <p id="map-caption" class="caption"></p>
     <div id="suggestion" class="suggestion" role="status"></div>
     <div class="map-scroll"><div id="map"></div></div>
+    <ul class="legend" id="legend" aria-label="Legend"></ul>
   </section>
 
   <section class="panel detail" aria-label="The selected checkpoint">
     <div id="detail-head" class="detail-head"></div>
     <div class="tabs" role="tablist" id="tabs">
       <button role="tab" id="tab-checkpoint" aria-controls="view-checkpoint" aria-selected="true">Checkpoint</button>
-      <button role="tab" id="tab-drift" aria-controls="view-drift" aria-selected="false">Drift</button>
       <button role="tab" id="tab-rules" aria-controls="view-rules" aria-selected="false">Rules</button>
       <button role="tab" id="tab-ledger" aria-controls="view-ledger" aria-selected="false">Ledger</button>
       <button role="tab" id="tab-receipt" aria-controls="view-receipt" aria-selected="false">Receipt</button>
     </div>
     <div role="tabpanel" id="view-checkpoint" aria-labelledby="tab-checkpoint" class="view"></div>
-    <div role="tabpanel" id="view-drift" aria-labelledby="tab-drift" class="view" hidden></div>
     <div role="tabpanel" id="view-rules" aria-labelledby="tab-rules" class="view" hidden></div>
     <div role="tabpanel" id="view-ledger" aria-labelledby="tab-ledger" class="view" hidden></div>
     <div role="tabpanel" id="view-receipt" aria-labelledby="tab-receipt" class="view" hidden></div>

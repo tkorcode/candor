@@ -1,6 +1,6 @@
-// Candor Console. Loads one recorded run, verifies it in the browser, and shows the story of the run, the run
-// map, and five views of the selected checkpoint: the checkpoint, its drift, the rules, the ledger and the
-// receipt. Every value comes from the run files. Worker text is shown as text only.
+// Candor Console. Loads one recorded run, verifies it in the browser, and shows the verdicts, the run map with
+// what happened, and four views: the selected checkpoint and why it scored what it did, the rules, the ledger
+// and the receipt. Every value comes from the run files. Worker text is shown as text only.
 
 import { canonicalJson } from "./canonical.js";
 import { clear, download, fmt, h, money, s } from "./dom.js";
@@ -22,6 +22,7 @@ const state = {
   filters: { branch: "all", actor: "all", type: "all", text: "", routine: true },
   open: new Set(),
   guide: [],
+  live: null,
 };
 const $ = (id) => document.getElementById(id);
 const fetchText = async (path) => {
@@ -78,11 +79,25 @@ async function start() {
     d.hidden = !d.hidden;
     $("integrity").setAttribute("aria-expanded", d.hidden ? "false" : "true");
   });
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest?.("#cp-menu")) closeMenu();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeMenu();
+  });
   let resize = 0;
   window.addEventListener("resize", () => {
     cancelAnimationFrame(resize);
     resize = requestAnimationFrame(() => state.model && drawMap());
   });
+  // The live watcher exists only where the endpoint is deployed. It answers a GET with 405, a static copy with 404.
+  fetch("api/rescore", { method: "GET" })
+    .then((r) => r.status === 405)
+    .catch(() => false)
+    .then((live) => {
+      state.live = live;
+      if (state.model && state.tab === "checkpoint") drawView();
+    });
   await openRun(location.hash.slice(1) || state.runs[0]?.id);
 }
 
@@ -106,7 +121,6 @@ async function openRun(id) {
   state.open = new Set();
   drawHeader();
   drawVerdicts();
-  drawStory();
   drawMap();
   drawDetail();
   checkIntegrity();
@@ -117,7 +131,7 @@ function stageTitle(cp) {
   const m = state.model;
   if (cp.stage) return m.stageOf(cp.stage)?.title ?? state.guide.find((g) => g.id === cp.stage)?.title ?? cp.stage;
   if (cp.trigger === "before_irreversible") return "Before the migration";
-  if (cp.trigger === "final") return "End of the run";
+  if (cp.trigger === "final") return m.branches.get(cp.branch)?.superseded ? `End of branch ${cp.branch}` : "End of the run";
   if (cp.trigger === "restart") return "Restart point";
   return cp.trigger.replaceAll("_", " ");
 }
@@ -148,7 +162,7 @@ async function checkIntegrity() {
   if (state.tab === "ledger" || state.tab === "receipt") drawView();
 }
 
-// ---- header, verdicts, story --------------------------------------------------------------------------
+// ---- header and verdicts ------------------------------------------------------------------------------
 
 function drawHeader() {
   const m = state.model;
@@ -159,7 +173,6 @@ function drawHeader() {
     h("span", {}, `recorded ${state.run.started.slice(0, 10)}`),
     m.models.worker.length ? h("span", {}, `worker ${m.models.worker.join(", ")}`) : null,
     m.models.watcher.length ? h("span", {}, `watcher ${m.models.watcher.join(", ")}`) : null,
-    h("span", {}, money(m.cost.worker + m.cost.watcher)),
   );
 }
 
@@ -167,76 +180,60 @@ function drawVerdicts() {
   const v = state.model.receipt.verdicts;
   const tone = (verdict) => (verdict === "yes" ? "ok" : verdict === "partly" ? "warn" : "pause");
   const word = (verdict) => (verdict === "yes" ? "Yes" : verdict === "no" ? "No" : verdict === "partly" ? "Partly" : verdict);
-  const card = (question, verdict, why) =>
-    h("div", { class: `verdict ${tone(verdict.verdict)}` }, h("div", { class: "icon" }, icon(verdict.verdict === "yes" ? "check" : verdict.verdict === "partly" ? "partly" : "cross", 20)), h("div", {}, h("div", { class: "q" }, question), h("div", { class: "a" }, word(verdict.verdict)), h("p", { class: "why" }, why)));
+  const row = (label, verdict, why) =>
+    h("div", { class: `verdict ${tone(verdict.verdict)}` }, h("span", { class: "icon" }, icon(verdict.verdict === "yes" ? "check" : verdict.verdict === "partly" ? "partly" : "cross", 14)), h("span", { class: "q" }, label), h("span", { class: "a" }, word(verdict.verdict)), h("span", { class: "why" }, why));
   const criteria = state.model.receipt.criteria ?? [];
   const verified = criteria.filter((c) => c.status === "verified").length;
-  const unchecked = criteria.filter((c) => c.status !== "verified").map((c) => c.text);
   clear($("verdicts")).append(
-    card("Did the job stay on course?", v.stayed_on_course, v.stayed_on_course.verdict === "yes" ? "No pause was left open, and every stage passed its exit checks." : firstSentences(v.stayed_on_course.reasons?.[0], 1)),
-    card("Was the result verified?", v.result_verified, criteria.length ? `${verified} of ${criteria.length} success criteria passed a proven check.${unchecked.length ? ` Not verified: ${unchecked.map((t) => short(t, 60)).join("; ")}` : ""}` : firstSentences(v.result_verified.reasons?.[0], 1)),
+    row("Stayed on course", v.stayed_on_course, v.stayed_on_course.verdict === "yes" ? "No pause left open, every stage passed its checks" : firstSentences(v.stayed_on_course.reasons?.[0], 1)),
+    row("Result verified", v.result_verified, criteria.length ? `${verified} of ${criteria.length} success criteria proven` : firstSentences(v.result_verified.reasons?.[0], 1)),
   );
-}
-
-/** The moments of the run, in order, from the ledger: what a person would tell you happened. */
-function storyItems() {
-  const m = state.model;
-  const items = [];
-  const firstCp = m.checkpoints[0];
-  if (firstCp) items.push({ seq: firstCp.seq, tone: "", title: "The job starts", detail: `${stageTitle(firstCp)}, on branch ${firstCp.branch}`, target: firstCp.id });
-  for (const r of m.ruleChanges.filter((e) => e.body.source !== "restart")) {
-    const before = [...m.checkpoints].reverse().find((c) => c.seq < r.seq);
-    items.push({ seq: r.seq, tone: "accent", title: "A rule is added", detail: short(r.body.rule?.text, 60), target: before?.id, tab: "rules" });
-  }
-  for (const r of m.restarts) {
-    const first = m.checkpoints.find((c) => c.branch === r.body.to_branch);
-    items.push({ seq: r.seq, tone: "accent", title: `Restart from ${r.body.from}`, detail: `Branch ${r.body.to_branch}, with the reason as a rule`, target: first?.id ?? r.body.from });
-  }
-  const flagged = m.lineageOf(m.activeBranch).find((c) => {
-    const o = latestOverall(c);
-    return o !== null && o >= state.thresholds.warn;
-  });
-  if (flagged) {
-    const level = levelFor(latestOverall(flagged), state.thresholds);
-    items.push({ seq: flagged.seq, tone: level, title: level === "pause" ? "The watcher pauses the job" : "The watcher warns", detail: `${flagged.id}, ${stageTitle(flagged)}, ${fmt(latestOverall(flagged))}`, target: flagged.id });
-  }
-  for (const a of m.approvals) {
-    const cp = [...m.checkpoints].reverse().find((c) => c.seq < a.seq && c.trigger === "before_irreversible") ?? [...m.checkpoints].reverse().find((c) => c.seq < a.seq);
-    items.push({ seq: a.seq, tone: "", title: "A step waits for a person", detail: "Held, then approved by the operator", target: cp?.id });
-  }
-  const last = m.checkpoints.at(-1);
-  const v = m.receipt.verdicts;
-  if (last) items.push({ seq: Number.MAX_SAFE_INTEGER, tone: "", title: "The trust receipt", detail: `On course ${v.stayed_on_course.verdict}, verified ${v.result_verified.verdict}`, target: last.id, tab: "receipt" });
-  return items.sort((a, b) => a.seq - b.seq);
-}
-
-function drawStory() {
-  const nav = clear($("story"));
-  storyItems().forEach((it, i) => {
-    const current = it.target === state.selected && (it.tab ?? "checkpoint") === state.tab;
-    nav.append(
-      h("button", { type: "button", "aria-current": current ? "true" : "false", onclick: () => {
-        state.selected = it.target ?? state.selected;
-        state.tab = it.tab ?? "checkpoint";
-        drawStory();
-        drawMap();
-        drawDetail();
-        $("detail-head").scrollIntoView({ behavior: "smooth", block: "start" });
-      } }, h("span", { class: `n ${it.tone}` }, String(i + 1)), h("span", {}, h("div", { class: "t" }, it.title), h("div", { class: "d" }, it.detail))),
-    );
-  });
 }
 
 // ---- map ------------------------------------------------------------------------------------------------
 
+const noteSent = (cp) => state.model.entries.some((e) => e.type === "check_result" && e.body.check === "watcher_note" && e.body.checkpoint === cp.id && e.body.event === "delivered");
+const list = (items) => (items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`);
+
+/** What the run map shows, in a few plain sentences built from the ledger, in the order it happened. */
+function mapCaption() {
+  const m = state.model;
+  const parts = [];
+  const stagesOf = (branch) => new Set(m.checkpoints.filter((c) => c.branch === branch && c.stage && c.trigger !== "restart").map((c) => c.stage)).size;
+  const first = m.checkpoints[0];
+  if (first) {
+    const n = stagesOf(first.branch);
+    parts.push({ seq: first.seq, text: `Branch ${first.branch} ran ${n} stage${n === 1 ? "" : "s"}${m.branches.get(first.branch)?.superseded ? " and stopped" : ""}.` });
+  }
+  for (const r of m.ruleChanges.filter((e) => e.body.source !== "restart")) {
+    const again = m.checkpoints.filter((c) => c.rescores.some((x) => x.body.charter_version === r.body.version && x.body.status === "scored")).map((c) => c.id);
+    parts.push({ seq: r.seq, text: `The operator added a rule${again.length ? `, and ${list(again)} ${again.length === 1 ? "was" : "were"} scored again` : ""}.` });
+  }
+  for (const r of m.restarts) {
+    const n = stagesOf(r.body.to_branch);
+    parts.push({ seq: r.seq, text: `The operator restarted from ${r.body.from}, which opened branch ${r.body.to_branch}. It ran ${n} stage${n === 1 ? "" : "s"} to the end.` });
+  }
+  for (const cp of m.checkpoints) {
+    const level = levelFor(latestOverall(cp), state.thresholds);
+    if (level === "warn" || level === "pause") parts.push({ seq: cp.seq + 0.5, text: `The watcher ${level === "pause" ? "paused the job" : "warned"} at ${cp.id}${noteSent(cp) ? " and sent the worker a note" : ""}.` });
+  }
+  for (const cp of m.checkpoints.filter((c) => c.trigger === "before_irreversible")) parts.push({ seq: cp.seq + 0.6, text: `${cp.id} waited for a person before an action that cannot be undone.` });
+  return parts
+    .sort((a, b) => a.seq - b.seq)
+    .map((p) => p.text)
+    .join(" ");
+}
+
 function drawMap() {
   const m = state.model;
   const suggestion = suggestRestart(m, state.thresholds);
+  $("map-caption").textContent = mapCaption();
   const box = clear($("suggestion"));
   box.className = `suggestion ${suggestion.kind}`;
   box.append(h("span", {}, h("strong", {}, suggestion.kind === "suggested" ? `Suggested restart point: ${suggestion.checkpoint.id}. ` : "Restart point. "), suggestion.text));
   if (suggestion.kind === "suggested") box.append(h("button", { class: "link", type: "button", onclick: () => select(suggestion.checkpoint.id) }, `Open ${suggestion.checkpoint.id}`));
-  renderMap($("map"), m, { thresholds: state.thresholds, selected: state.selected, suggestion, onSelect: select, stageTitle });
+  drawLevels();
+  renderMap($("map"), m, { thresholds: state.thresholds, selected: state.selected, suggestion, onSelect: select, onMenu: openMenu, stageTitle, noteSent });
   const legend = clear($("legend"));
   const sw = (cls, color) => h("span", { class: `swatch ${cls}`, style: color ? `background:${color}` : "" });
   const glyph = (d, color) => s("svg", { width: 14, height: 14, viewBox: "0 0 24 24", fill: "none", stroke: color, "stroke-width": 2.4, "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true" }, d.map((p) => (p.startsWith("rect") ? s("rect", { x: 5, y: 11, width: 14, height: 10, rx: 2 }) : s("path", { d: p }))));
@@ -249,15 +246,98 @@ function drawMap() {
     h("li", {}, sw("square"), "record only"),
     h("li", {}, glyph(["rect", "M8 11V7a4 4 0 0 1 8 0v4"], "var(--fg)"), "waits for a person"),
     h("li", {}, sw("", "var(--fg)"), "scored again"),
+    h("li", { class: "map-hint" }, "Right-click a checkpoint for actions"),
   );
+}
+
+/** The warn and pause levels, beside the map they colour. Changing them changes only what this page shows. */
+function drawLevels() {
+  const m = state.model;
+  const t = state.thresholds;
+  const changed = t.warn !== m.thresholds.warn || t.pause !== m.thresholds.pause;
+  const warn = h("input", { type: "range", min: 0.05, max: 0.95, step: 0.05, value: t.warn, "aria-label": "Warn level" });
+  const pause = h("input", { type: "range", min: 0.1, max: 1, step: 0.05, value: t.pause, "aria-label": "Pause level" });
+  const apply = (next) => {
+    state.thresholds = next;
+    drawMap();
+    drawDetail();
+  };
+  warn.addEventListener("change", () => apply({ warn: Number(warn.value), pause: Math.max(Number(pause.value), Number(warn.value)) }));
+  pause.addEventListener("change", () => apply({ warn: Math.min(Number(warn.value), Number(pause.value)), pause: Number(pause.value) }));
+  clear($("levels")).append(...[
+    h("label", { title: "At or above this drift, Candor sends the worker a note and the job goes on." }, "Warn at ", warn, h("span", { class: "mono" }, t.warn.toFixed(2))),
+    h("label", { title: "At or above this drift, every tool call waits for a person." }, "Pause at ", pause, h("span", { class: "mono" }, t.pause.toFixed(2))),
+    changed ? h("span", { class: "changed" }, "What if: the run used ", `${m.thresholds.warn} and ${m.thresholds.pause}`, " ") : null,
+    changed ? h("button", { class: "link", type: "button", onclick: () => apply({ ...m.thresholds }) }, "Back to the run") : null,
+  ].filter(Boolean));
 }
 
 function select(id) {
   state.selected = id;
-  if (state.tab !== "checkpoint" && state.tab !== "drift") state.tab = "checkpoint";
-  drawStory();
+  if (state.tab !== "checkpoint") state.tab = "checkpoint";
   drawMap();
   drawDetail();
+}
+
+// ---- the actions menu of a checkpoint -----------------------------------------------------------------
+
+function closeMenu() {
+  document.getElementById("cp-menu")?.remove();
+}
+
+function toast(text) {
+  document.querySelector(".toast")?.remove();
+  const t = h("div", { class: "toast", role: "status" }, text);
+  document.body.append(t);
+  setTimeout(() => t.remove(), 2200);
+}
+
+/** Opens the section of the checkpoint view with this id, and focuses its first field if it has one. */
+function goToSection(id) {
+  state.tab = "checkpoint";
+  drawDetail();
+  const target = document.getElementById(id);
+  if (target?.tagName === "DETAILS") target.open = true;
+  target?.scrollIntoView({ behavior: "smooth", block: "start" });
+  target?.querySelector("input")?.focus({ preventScroll: true });
+}
+
+function openMenu(id, x, y) {
+  closeMenu();
+  const m = state.model;
+  const cp = m.byId.get(id);
+  if (!cp) return;
+  select(id);
+  const command = `candor restart ${cp.id} --reason "<what went wrong>"`;
+  const item = (label, action, enabled = true) =>
+    h("button", { type: "button", role: "menuitem", disabled: enabled ? null : true, onclick: () => {
+      closeMenu();
+      action();
+    } }, label);
+  const menu = h("div", { class: "menu", role: "menu", id: "cp-menu", "aria-label": `Actions for ${cp.id}` },
+    h("div", { class: "menu-head" }, `${cp.id} · ${stageTitle(cp)}`),
+    item("Why this score", () => goToSection("why"), !!cp.latest),
+    item("Ask the watcher again with a rule", () => goToSection("ask"), !!cp.first),
+    item(cp.safety === "safe_to_restart" ? "Copy the restart command" : "Restart is not possible here", () => navigator.clipboard?.writeText(command).then(() => toast("Restart command copied. Run it on the machine running the job."), () => toast(command)), cp.safety === "safe_to_restart"),
+    item("Show its entries in the ledger", () => goToEntries([cp.seq, ...m.windowOf(cp).map((e) => e.seq)])),
+  );
+  menu.style.cssText = `left:${x}px;top:${y}px`;
+  document.body.append(menu);
+  const r = menu.getBoundingClientRect();
+  if (r.right > innerWidth - 8) menu.style.left = `${Math.max(8, innerWidth - r.width - 8)}px`;
+  if (r.bottom > innerHeight - 8) menu.style.top = `${Math.max(8, y - r.height)}px`;
+  const buttons = [...menu.querySelectorAll("button:not([disabled])")];
+  buttons[0]?.focus();
+  menu.addEventListener("keydown", (e) => {
+    const i = buttons.indexOf(document.activeElement);
+    if (e.key === "Escape") {
+      closeMenu();
+      document.querySelector(`[data-cp="${cp.id}"]`)?.focus();
+    } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      buttons[(i + (e.key === "ArrowDown" ? 1 : buttons.length - 1)) % buttons.length]?.focus();
+    } else if (e.key === "Tab") closeMenu();
+  });
 }
 
 // ---- the selected checkpoint --------------------------------------------------------------------------
@@ -269,11 +349,18 @@ function drawDetail() {
   if (cp) {
     const latest = latestOverall(cp);
     const level = levelFor(latest, state.thresholds);
+    const actions = h("button", { class: "btn", type: "button", "aria-haspopup": "menu", onclick: (e) => {
+      e.stopPropagation();
+      const r = e.currentTarget.getBoundingClientRect();
+      openMenu(cp.id, r.left, r.bottom + 6);
+    } }, "Actions");
     head.append(
       h("h2", {}, `${cp.id} · ${stageTitle(cp)}`),
       chipFor(level, latest),
       h("span", { class: `chip ${cp.safety === "safe_to_restart" ? "accent" : "none"}` }, cp.safety === "safe_to_restart" ? "can restart here" : "record only"),
       h("span", { class: "chip" }, `branch ${cp.branch}`),
+      h("span", { class: "grow" }),
+      actions,
     );
   }
   for (const t of document.querySelectorAll('[role="tab"]')) {
@@ -287,12 +374,11 @@ function drawDetail() {
 
 function showTab(tab) {
   state.tab = tab;
-  drawStory();
   drawDetail();
 }
 
 function drawView() {
-  const views = { checkpoint: viewCheckpoint, drift: viewDrift, rules: viewRules, ledger: viewLedger, receipt: viewReceipt };
+  const views = { checkpoint: viewCheckpoint, rules: viewRules, ledger: viewLedger, receipt: viewReceipt };
   const el = clear($(`view-${state.tab}`));
   views[state.tab](el);
 }
@@ -307,131 +393,123 @@ const entryLinks = (seqs) => (seqs ?? []).flatMap((n, i) => [i ? " " : "", h("bu
 
 // ---- checkpoint -------------------------------------------------------------------------------------
 
+/** One plain sentence on what this checkpoint closes, from the ledger. */
+function whatHappened(cp) {
+  const m = state.model;
+  if (cp.trigger === "restart") return `Branch ${cp.branch} starts here, from the files of ${m.branches.get(cp.branch)?.from ?? "an earlier checkpoint"}. Nothing new was done yet, so there was nothing to score.`;
+  if (cp.trigger === "before_irreversible") {
+    // The hold and its checkpoint are written together, so take the held action nearest the checkpoint.
+    const held = [...m.held].sort((a, b) => Math.abs(a.seq - cp.seq) - Math.abs(b.seq - cp.seq))[0];
+    const approved = held && m.approvals.some((a) => a.body.held_seq === held.seq);
+    if (held) return `The worker asked to run ${String(held.body.summary).replace(/^Bash: /, "")}, which cannot be undone. Candor held it for a person${approved ? ", and the operator approved it once" : ""}.`;
+  }
+  if (cp.firstRecord?.body.reason === "no_new_work") return "Nothing new was done since the last checkpoint, so there was nothing to score.";
+  return null;
+}
+
+/** What one question of the watcher is checked against, taken from the charter in force for the score. */
+function againstOf(d, charter) {
+  const rules = (charter?.drift_rules ?? []).filter((r) => r.dimension === d).map((r) => r.text);
+  const box = h("div", { class: "against" }, h("div", { class: "k" }, "Checked against, from the charter"));
+  if (d === "goal") box.append(h("p", {}, h("strong", {}, "Goal: "), charter?.goal ?? ""));
+  if (d === "scope") box.append(h("p", {}, h("strong", {}, "May change: "), charter?.scope.allow_paths.join(", ") || "nothing", h("br"), h("strong", {}, "May never change: "), charter?.scope.deny_paths.join(", ") || "nothing"));
+  if (d === "plan") box.append(h("p", {}, h("strong", {}, "Stages, in order: "), (charter?.stages ?? []).map((s) => s.title).join(", ")));
+  if (d === "evidence") box.append(h("p", {}, "The stage report of the worker, against the ledger entries recorded since the last checkpoint."));
+  if (rules.length) box.append(h("div", { class: "k" }, "Rules"), h("ul", {}, rules.map((r) => h("li", {}, r))));
+  return box;
+}
+
 function viewCheckpoint(el) {
   const m = state.model;
   const cp = m.byId.get(state.selected);
   if (!cp) return el.append(h("p", {}, "Select a checkpoint on the run map."));
-  const stage = cp.stage ? m.stageOf(cp.stage) : null;
   const report = m.reportFor(cp);
   const window = m.windowOf(cp);
   const actions = window.filter((e) => e.type === "tool_intent");
   const count = (d) => actions.filter((a) => a.body.decision === d).length;
+  const reading = cp.latest;
   const latest = latestOverall(cp);
-  const level = levelFor(latest, state.thresholds);
-  const finding = cp.latest?.body.findings?.[0];
-  const charter = m.charterByVersion.get(cp.latest?.body.charter_version ?? 1) ?? m.latestCharter;
-  const dimension = finding ? (charter?.drift_rules.find((r) => r.id === finding.rule)?.dimension ?? null) : null;
+  const t = state.thresholds;
+  const level = levelFor(latest, t);
+  const charter = m.charterByVersion.get(reading?.body.charter_version ?? 1) ?? m.latestCharter;
+  const dimensionOf = (f) => charter?.drift_rules.find((r) => r.id === f.rule)?.dimension ?? null;
+  const finding = reading?.body.findings?.[0];
 
+  // What happened, in one place: the alert when the watcher flagged it, otherwise one sentence.
   if (level === "warn" || level === "pause") {
-    el.append(
-      h("div", { class: `alert ${level}` },
-        h("h3", {}, dimension ? HEADLINE[dimension] : `Drift reached ${level}`),
-        finding ? h("p", {}, firstSentences(finding.summary, 2)) : null,
-        h("p", { class: "did" }, level === "pause" ? "Every tool call waited until a person continued, added a rule or restarted." : "Candor sent the worker a note. A warn does not stop the job.", " ", h("button", { class: "link", type: "button", onclick: () => showTab("drift") }, "Why this score")),
-      ),
-    );
-  } else if (stage?.description) el.append(h("p", { class: "sum" }, stage.description));
+    const did = level === "pause" ? "Candor paused the job. Every tool call waited until a person continued, added a rule or restarted." : noteSent(cp) ? "Candor sent the worker a note with this finding. A warn does not stop the job." : "A warn does not stop the job.";
+    el.append(h("div", { class: `alert ${level}` }, h("h3", {}, finding && dimensionOf(finding) ? HEADLINE[dimensionOf(finding)] : `Drift reached ${level}`), finding ? h("p", {}, firstSentences(finding.summary, 2)) : null, h("p", { class: "did" }, did)));
+  } else {
+    const line = whatHappened(cp);
+    if (line) el.append(h("p", { class: "lead" }, line));
+  }
 
+  // Why this score.
+  const why = h("section", { id: "why" }, h("h3", {}, "Why this score"));
+  if (!reading) why.append(h("p", { class: "note" }, `${cp.id} was not scored.`));
+  else {
+    const b = reading.body;
+    why.append(h("p", { class: "sum" }, `A separate Claude model with no tools answers four questions from 0, on course, to 1, off course. The highest answer is the drift of the checkpoint.${reading.type === "rescore" ? ` These are the scores after the rules changed, charter version ${b.charter_version}.` : ""}`));
+    const dims = h("div", { class: "dims" });
+    for (const d of DIMENSIONS) {
+      const v = b.dimensions?.[d] ?? 0;
+      const dl = levelFor(v, t);
+      const own = (b.findings ?? []).filter((f) => dimensionOf(f) === d);
+      const row = h("details", { class: `dim${own.length || dl !== "ok" ? " flagged" : ""}`, open: own.length > 0 ? true : null },
+        h("summary", { class: "dim-row" },
+          h("div", {}, h("div", { class: "dim-name" }, d[0].toUpperCase() + d.slice(1)), h("div", { class: "dim-q" }, QUESTION[d])),
+          h("span", { class: "track", role: "img", "aria-label": `${d} ${v}` }, h("span", { class: "fill", style: `width:${Math.round(v * 100)}%;background:var(--${dl === "ok" ? "ok" : dl}-mark)` }), h("span", { class: "tick", style: `left:${t.warn * 100}%` }), h("span", { class: "tick", style: `left:${t.pause * 100}%` })),
+          h("span", { class: "dim-v" }, fmt(v)),
+        ),
+      );
+      row.append(againstOf(d, charter));
+      for (const f of own) {
+        const rule = charter?.drift_rules.find((r) => r.id === f.rule);
+        row.append(h("div", { class: "dim-body" }, h("div", {}, h("div", { class: "k" }, rule ? "What the watcher found" : `What the watcher found, against ${f.rule}`), f.summary), h("div", {}, h("div", { class: "k" }, "In the record"), entryLinks(f.entries))));
+      }
+      dims.append(row);
+    }
+    why.append(dims);
+  }
+  el.append(why);
+
+  // What the worker said, and what Candor checked.
   const says = h("div", { class: "box" }, h("h3", {}, "The worker reported"));
   if (report) {
     says.append(h("p", {}, report.body.summary ?? `Stage ${report.body.stage} ${report.body.done ? "done" : "not done"}.`));
     const dev = report.body.deviations ?? [];
     if (dev.length) says.append(h("div", { class: "note" }, "Deviations it named"), h("ul", { class: "plain" }, dev.map((d) => h("li", {}, d))));
-  } else says.append(h("p", { class: "note" }, "No stage report in this stretch."));
-
+  } else says.append(h("p", { class: "note" }, "No stage report here."));
   const found = h("div", { class: "box" }, h("h3", {}, "Candor checked"));
   found.append(
     h("dl", { class: "facts" },
       h("dt", {}, "Exit checks"), h("dd", {}, cp.checks.length ? cp.checks.map((c) => h("div", {}, h("span", { class: `state ${c.body.status === "passed" ? "ok" : "bad"}` }, icon(c.body.status === "passed" ? "check" : "cross", 14), c.body.check), c.body.strength ? h("span", { class: "note" }, ` · ${c.body.strength}`) : "")) : "none here"),
-      h("dt", {}, "Drift"), h("dd", {}, latest === null ? `not scored${cp.firstRecord?.body.reason === "no_new_work" ? ", no new work" : ""}` : chipFor(level, latest)),
-      h("dt", {}, "Tool calls"), h("dd", {}, `${count("allow")} allowed, ${count("deny")} refused, ${count("hold")} held`),
+      h("dt", {}, "Worker actions"), h("dd", {}, `${count("allow")} allowed, ${count("deny")} refused, ${count("hold")} held for a person`),
       h("dt", {}, "Files changed"), h("dd", {}, cp.changedPaths.length ? cp.changedPaths.slice(0, 6).join(", ") + (cp.changedCount > 6 ? ` and ${cp.changedCount - 6} more` : "") : "none"),
     ),
   );
-  el.append(h("div", { class: "cols" }, says, found));
+  found.append(h("p", { class: "explain" }, "Worker actions are the commands and file edits the worker asks Claude Code to make. Candor checks each one against the charter before it runs."));
+  el.append(h("div", { class: "cols", style: "margin-top:16px" }, says, found));
 
+  // What a person can do here.
+  const restart = h("div", { class: "box wide" }, h("h3", {}, cp.safety === "safe_to_restart" ? "Restart from here" : "Record only"));
+  if (cp.safety === "safe_to_restart") restart.append(h("p", {}, "Opens a new branch from the files of this checkpoint and forks the worker conversation here. The reason becomes a rule, and the old branch is kept. Only the operator can restart, on the machine running the job."), h("pre", { class: "cmd" }, `candor restart ${cp.id} --reason "<what went wrong>"`));
+  else restart.append(h("p", {}, "An action that cannot be undone happened before this point, so a restart has to start from an earlier checkpoint."));
+  el.append(restart, liveWatcher(cp));
+
+  // Detail, folded away.
   const notable = window.filter((e) => !ROUTINE(e) && e.type !== "tool_result");
-  const activity = h("details", { class: "more" }, h("summary", {}, `What happened in this stretch (${notable.length} entries)`));
+  const activity = h("details", { class: "more" }, h("summary", {}, `Everything recorded here (${notable.length} entries)`));
   activity.append(notable.length ? h("ul", { class: "plain" }, notable.slice(0, 20).map((e) => h("li", {}, h("span", { class: "mono note" }, `#${e.seq} `), describe(e)))) : h("p", { class: "note" }, "Nothing was recorded here."));
   if (notable.length > 20) activity.append(h("button", { class: "link", type: "button", onclick: () => goToEntries(notable.map((e) => e.seq)) }, `All ${notable.length} in the ledger`));
 
-  const restart = h("div", { class: "box wide" }, h("h3", {}, cp.safety === "safe_to_restart" ? "Restart from here" : "Record only"));
-  if (cp.safety === "safe_to_restart") {
-    restart.append(
-      h("p", {}, "Opens a new branch from the files of this checkpoint and forks the worker conversation here. The reason becomes a rule, and the old branch is kept. Only the operator can restart, on the machine running the job."),
-      h("pre", { class: "cmd" }, `candor restart ${cp.id} --reason "<what went wrong>"`),
-    );
-  } else restart.append(h("p", {}, "An action that cannot be undone happened before this point, so a restart has to start from an earlier checkpoint."));
-
-  el.append(restart, activity);
-}
-
-// ---- drift ---------------------------------------------------------------------------------------------
-
-function viewDrift(el) {
-  const m = state.model;
-  const cp = m.byId.get(state.selected);
-  if (!cp) return el.append(h("p", {}, "Select a checkpoint on the run map."));
-  const reading = cp.latest;
-  if (!reading) {
-    el.append(h("p", {}, `${cp.id} was not scored${cp.firstRecord?.body.reason === "no_new_work" ? ", because there was no new work since the last checkpoint" : ""}.`), trend(m));
-    return;
-  }
-  const b = reading.body;
-  const t = state.thresholds;
-  const lvl = levelFor(b.overall, t);
-  const charter = m.charterByVersion.get(b.charter_version ?? 1) ?? m.latestCharter;
-  el.append(h("p", { class: "sum" }, `A separate Claude model with no tools scores four questions from 0 (on course) to 1 (off course). The highest is the drift: ${fmt(b.overall)}, ${levelWord(lvl)}.${reading.type === "rescore" ? ` This is the reading after the rules changed, charter version ${b.charter_version}.` : ""}`));
-
-  const dims = h("div", { class: "dims" });
-  const findings = b.findings ?? [];
-  for (const d of DIMENSIONS) {
-    const v = b.dimensions?.[d] ?? 0;
-    const dl = levelFor(v, t);
-    const own = findings.filter((f) => charter?.drift_rules.find((r) => r.id === f.rule)?.dimension === d);
-    const open = own.length > 0 || dl !== "ok";
-    const row = h("div", { class: `dim${open ? " flagged" : ""}` },
-      h("div", { class: "dim-row" },
-        h("div", {}, h("div", { class: "dim-name" }, d[0].toUpperCase() + d.slice(1)), h("div", { class: "dim-q" }, QUESTION[d])),
-        h("span", { class: "track", role: "img", "aria-label": `${d} ${v}` }, h("span", { class: "fill", style: `width:${Math.round(v * 100)}%;background:var(--${dl === "ok" ? "ok" : dl}-mark)` }), h("span", { class: "tick", style: `left:${t.warn * 100}%` }), h("span", { class: "tick", style: `left:${t.pause * 100}%` })),
-        h("span", { class: "dim-v" }, fmt(v)),
-      ),
-    );
-    for (const f of own) {
-      const rule = charter?.drift_rules.find((r) => r.id === f.rule);
-      row.append(h("div", { class: "dim-body" },
-        h("div", {}, h("div", { class: "k" }, "The rule"), rule?.text ?? f.rule),
-        h("div", {}, h("div", { class: "k" }, "What the watcher found"), f.summary),
-        h("div", {}, h("div", { class: "k" }, "In the record"), entryLinks(f.entries)),
-      ));
-    }
-    dims.append(row);
-  }
-  el.append(dims);
-
-  const whatif = h("details", { class: "more" }, h("summary", {}, "What if the warn and pause levels were different?"));
-  const warn = h("input", { type: "range", min: 0.05, max: 0.95, step: 0.05, value: t.warn, "aria-label": "Warn level" });
-  const pause = h("input", { type: "range", min: 0.1, max: 1, step: 0.05, value: t.pause, "aria-label": "Pause level" });
-  const out = h("span", { class: "mono" }, `warn ${t.warn}, pause ${t.pause}`);
-  const apply = () => {
-    state.thresholds = { warn: Number(warn.value), pause: Math.max(Number(pause.value), Number(warn.value)) };
-    drawStory();
-    drawMap();
-    drawDetail();
-  };
-  warn.addEventListener("change", apply);
-  pause.addEventListener("change", apply);
-  whatif.append(h("div", { class: "whatif" }, h("label", {}, "Warn ", warn), h("label", {}, "Pause ", pause), out, h("button", { class: "link", type: "button", onclick: () => { state.thresholds = { ...m.thresholds }; apply(); } }, "Back to the charter values")), h("p", { class: "note" }, "This changes only what you see. The run used the levels of its charter."));
-  if (state.thresholds.warn !== m.thresholds.warn || state.thresholds.pause !== m.thresholds.pause) whatif.open = true;
-
   const rows = [cp.first, ...cp.rescores].filter(Boolean);
-  const readings = h("details", { class: "more" }, h("summary", {}, `Every reading of ${cp.id} (${rows.length})`),
+  const readings = h("details", { class: "more" }, h("summary", {}, `Every score of ${cp.id} (${rows.length})`),
     h("div", { class: "tablewrap" }, h("table", {},
-      h("thead", {}, h("tr", {}, h("th", {}, "Reading"), h("th", {}, "Charter"), h("th", { class: "num" }, "Drift"), h("th", {}, "Watcher"), h("th", { class: "num" }, "Cost"), h("th", {}, "Entry"))),
+      h("thead", {}, h("tr", {}, h("th", {}, "Score"), h("th", {}, "Charter"), h("th", { class: "num" }, "Drift"), h("th", {}, "Watcher"), h("th", { class: "num" }, "Cost"), h("th", {}, "Entry"))),
       h("tbody", {}, rows.map((r, i) => h("tr", {}, h("td", {}, i === 0 ? "first score" : r.body.status === "scored" ? "scored again" : "not scored again"), h("td", {}, `v${r.body.charter_version ?? 1}`), h("td", { class: "num" }, fmt(r.body.overall)), h("td", {}, r.body.judge_model ?? ""), h("td", { class: "num" }, money(r.body.usage?.cost_usd)), h("td", {}, h("button", { class: "link mono", type: "button", onclick: () => goToEntries([r.seq]) }, `#${r.seq}`))))),
     )));
-  const over = h("details", { class: "more" }, h("summary", {}, "Drift over the whole run"), trend(m));
-  el.append(liveWatcher(cp), whatif, readings, over, evidenceBox(cp));
+  el.append(activity, readings, h("details", { class: "more" }, h("summary", {}, "Drift over the whole run"), trend(m)), evidenceBox(cp));
 }
 
 /** Drift along the lineage of the active branch, with the warn and pause lines. */
@@ -475,7 +553,7 @@ function evidenceBox(cp) {
 }
 
 function liveWatcher(cp) {
-  const box = h("div", { class: "box", style: "margin-top:4px" }, h("h3", {}, "Ask the watcher again, with your own rule"));
+  const box = h("section", { class: "box wide", id: "ask" }, h("h3", {}, "Ask the watcher again, with your own rule"));
   if (!cp.first) {
     box.append(h("p", { class: "note" }, "This checkpoint has no stored evidence, so it cannot be scored again."));
     return box;
@@ -492,21 +570,30 @@ function liveWatcher(cp) {
       const res = await fetch("api/rescore", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ run: state.run.id, checkpoint: cp.id, rule: { dimension: dim.value, text: text.value || text.placeholder } }) });
       const body = await res.json().catch(() => ({}));
       clear(out);
-      if (!res.ok) return out.append(h("p", {}, res.status === 404 && !body.error ? "The live watcher is not available on this copy of the site." : body.error ?? `The watcher answered ${res.status}.`));
+      if (!res.ok) return out.append(h("p", {}, res.status === 404 && !body.error ? "The live watcher runs only on the hosted console. This copy of the site has no live watcher." : (body.error ?? `The live watcher answered with status ${res.status}.`)));
       const lvl = levelFor(body.overall, state.thresholds);
       out.append(
         h("p", {}, h("span", { class: "chip accent" }, "live"), " ", chipFor(lvl, body.overall), ` with your rule, against ${fmt(body.original?.overall)} recorded at the time.${body.cached ? " The same question was asked before." : ""}`),
         h("p", { class: "note mono" }, DIMENSIONS.map((d) => `${d} ${fmt(body.dimensions?.[d] ?? 0)}`).join(" · ")),
-        (body.findings ?? []).map((f) => h("p", {}, h("strong", {}, `${f.rule}: `), f.summary)),
+        h("div", {}, (body.findings ?? []).map((f) => h("p", {}, h("strong", {}, `${f.rule}: `), f.summary))),
         h("p", { class: "note" }, `${body.note} ${body.judge_model}, ${money(body.usage?.cost_usd)}.`),
       );
-    } catch {
-      clear(out).append(h("p", {}, "The live watcher is not available on this copy of the site."));
+    } catch (error) {
+      clear(out).append(h("p", {}, `The request did not reach the live watcher: ${error instanceof Error ? error.message : String(error)}. The recorded scores are unchanged.`));
     } finally {
-      button.disabled = false;
+      button.disabled = state.live === false;
     }
   });
-  box.append(h("p", { class: "note" }, "The real watcher reads the same stored evidence again with your rule added. Its answer is labelled live and never changes the signed record."), h("div", { class: "form-row" }, dim, text, button), out);
+  const why = "It calls the real watcher model, on the evidence stored for this checkpoint, with your rule added to the charter. The answer is labelled live and is never added to the signed record.";
+  if (state.live === false) {
+    button.disabled = true;
+    for (const f of [dim, text]) f.disabled = true;
+    box.append(
+      h("p", {}, h("strong", {}, "Runs only on the hosted console. "), `This copy of the site has no live watcher. There, ${why[0].toLowerCase()}${why.slice(1)}`),
+      h("p", { class: "note" }, "On a machine running Candor, candor rule adds a rule to a real run and scores its checkpoints again."),
+      h("div", { class: "form-row" }, dim, text, button),
+    );
+  } else box.append(h("p", { class: "note" }, state.live ? why : `Checking whether the live watcher is here… ${why}`), h("div", { class: "form-row" }, dim, text, button), out);
   return box;
 }
 

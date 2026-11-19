@@ -20,7 +20,7 @@ const lockGlyph = (x, y, color) =>
   s("g", { transform: `translate(${x - 6} ${y - 6}) scale(0.5)`, fill: "none", stroke: color, "stroke-width": 2.6, "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true" }, s("rect", { x: 5, y: 11, width: 14, height: 10, rx: 2 }), s("path", { d: "M8 11V7a4 4 0 0 1 8 0v4" }));
 
 export function renderMap(container, model, view) {
-  const { thresholds, selected, suggestion, onSelect, stageTitle } = view;
+  const { thresholds, selected, suggestion, onSelect, onMenu, stageTitle, noteSent } = view;
   const laneOrder = [...model.branches.keys()];
   const laneY = (branch) => TOP + 24 + laneOrder.indexOf(branch) * LANE;
   const maxCol = Math.max(0, ...model.checkpoints.map((c) => c.column));
@@ -76,20 +76,31 @@ export function renderMap(container, model, view) {
       class: "node",
       tabindex: 0,
       role: "button",
+      "data-cp": cp.id,
       "aria-pressed": isSelected ? "true" : "false",
       "aria-label": `${cp.id}, ${stage}, ${latest === null ? "not scored" : `drift ${latest}, ${level === "ok" ? "on course" : level}`}${cp.safety === "safe_to_restart" ? ", can restart here" : ", record only"}${held ? ", held for a person" : ""}${isSuggested ? ", suggested restart point" : ""}`,
       onclick: () => onSelect(cp.id),
+      // Right-click, the context menu key or Shift F10 opens the actions of the checkpoint.
+      oncontextmenu: (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onMenu?.(cp.id, e.clientX, e.clientY);
+      },
       onkeydown: (e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
           onSelect(cp.id);
+        } else if (e.key === "ContextMenu" || (e.key === "F10" && e.shiftKey)) {
+          e.preventDefault();
+          const r = e.currentTarget.getBoundingClientRect();
+          onMenu?.(cp.id, r.left + r.width / 2, r.bottom);
         }
       },
     });
     g.append(s("circle", { class: "halo", cx: x, cy: y, r: R + 9, fill: "transparent" }));
     if (isSuggested) g.append(s("circle", { cx: x, cy: y, r: R + 8, fill: "none", stroke: "var(--accent)", "stroke-width": 2, "stroke-dasharray": "4 4" }));
     g.append(s("circle", { class: "ring", cx: x, cy: y, r: R + 5, fill: "none", stroke: isSelected ? "var(--accent)" : "transparent", "stroke-width": 2.5 }));
-    const fill = latest === null ? "var(--surface)" : `var(--${t}-bg)`;
+    const fill = t === "warn" || t === "pause" ? `var(--${t}-bg)` : "var(--surface)";
     const stroke = latest === null ? "var(--none)" : `var(--${t}-mark)`;
     if (cp.safety === "record_only") g.append(s("rect", { x: x - R, y: y - R, width: R * 2, height: R * 2, rx: 6, fill, stroke, "stroke-width": 2.5 }));
     else g.append(s("circle", { cx: x, cy: y, r: R, fill, stroke, "stroke-width": 2.5 }));
@@ -105,6 +116,7 @@ export function renderMap(container, model, view) {
       s("text", { x, y: y + R + 32, "text-anchor": "middle", class: "cp-stage" }, s("title", {}, stage), short(stage, chars)),
     );
     if (held) g.append(s("text", { x, y: y + R + 47, "text-anchor": "middle", class: "cp-flag", fill: "var(--fg)" }, approved ? "held, approved" : "held for a person"));
+    else if (noteSent?.(cp)) g.append(s("text", { x, y: y + R + 47, "text-anchor": "middle", class: "cp-flag", fill: `var(--${t})` }, "note sent to worker"));
     else if (isSuggested) g.append(s("text", { x, y: y + R + 47, "text-anchor": "middle", class: "cp-flag", fill: "var(--accent-text)" }, "suggested restart"));
     svg.append(g);
   }

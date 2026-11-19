@@ -1,6 +1,6 @@
 {
   "name": "candor",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "Oversight layer for long-running Claude Code jobs: checks each stage against the goal, lets a person correct course, and ends with a signed trust receipt.",
   "license": "UNLICENSED",

@@ -13,7 +13,7 @@ import { verifyChain, verifyReceiptSignature } from "./verify.js";
 const $ = (id) => document.getElementById(id);
 /** Appends children, leaving out the empty ones, as h() does. */
 const put = (el, ...nodes) => el.append(...nodes.flat().filter((n) => n !== null && n !== undefined && n !== false));
-const state = { draft: null, input: null, files: {}, review: [], job: null, tab: "run", selected: null, open: null, polling: 0, seeded: false, live: true, busy: false, error: "" };
+const state = { draft: null, input: null, files: {}, review: [], job: null, tab: "run", selected: null, open: null, polling: 0, seeded: false, fault: "", live: true, worker: "api", workers: { claude_code: false, live: false }, busy: false, error: "" };
 const SUGGESTED = "Move the invoices service from CommonJS to ES modules, with no change to its public functions.";
 const HOLDS = [
   { value: "delete_file *", label: "Deleting any file" },
@@ -63,6 +63,8 @@ async function draftCharter(goal) {
     state.input = structuredClone(out.input);
     state.review = out.review;
     state.live = out.live;
+    state.workers = await get("api/workers").catch(() => ({ claude_code: false, live: out.live }));
+    state.worker = state.workers.claude_code ? "claude-code" : out.live ? "api" : "scripted";
     state.goalAsked = goal;
   } catch (e) {
     state.error = e.message;
@@ -91,7 +93,7 @@ async function approve() {
   state.busy = true;
   drawPane();
   try {
-    const job = await post("api/job", { input: state.input, live: state.live, seededFault: state.seeded });
+    const job = await post("api/job", { input: state.input, live: state.worker !== "scripted", ...(state.fault ? { fault: state.fault } : {}), ...(state.worker === "claude-code" ? { worker: "claude-code" } : {}) });
     history.replaceState(null, "", `?job=${job.id}`);
     state.job = job;
     state.tab = "run";
@@ -117,6 +119,7 @@ async function poll(id) {
   draw();
   const s = state.job?.status;
   if (s === "running") state.polling = setTimeout(() => poll(id), 900);
+  else if (s === "starting") state.polling = setTimeout(() => poll(id), 2500);
   else if (s === "held" || s === "paused") state.polling = setTimeout(() => poll(id), 4000);
 }
 
@@ -142,6 +145,17 @@ const charterNow = () => state.job?.charters.at(-1) ?? state.draft?.charter ?? n
 
 // ---- drawing ------------------------------------------------------------------------------------------------
 
+const QUESTION = { goal: "Does the work serve the goal?", scope: "Does it stay inside the scope?", plan: "Does it follow the plan?", evidence: "Are its claims backed by the record?" };
+
+const workerOf = (job) => (job.worker === "claude-code" ? "claude-code" : job.mode === "live" ? "api" : "scripted");
+const WORKER_LABEL = {
+  "claude-code": "live: Claude Code in its own container, Sonnet 5.5 worker, Opus 5.5 watcher",
+  api: "live: a Claude model with file tools, not Claude Code",
+  scripted: "scripted: no model is called",
+};
+/** A deletion cannot be undone inside the job. Anything else waits because the charter says so. */
+const isDelete = (summary) => /^(delete_file |Bash: (git )?rm )/.test(String(summary));
+
 function draw() {
   drawTree();
   drawTop();
@@ -152,7 +166,7 @@ function draw() {
   drawPane();
   const waiting = state.job?.status === "held" || state.job?.status === "paused";
   document.title = waiting ? "(1) Needs you · Candor workspace" : "Candor workspace";
-  $("mode").textContent = state.job ? (state.job.mode === "live" ? "live: real Claude worker and watcher" : "scripted: no model is called") : state.draft ? (state.live ? "live models available" : "scripted: no API key here") : "";
+  $("mode").textContent = state.job ? WORKER_LABEL[workerOf(state.job)] : state.draft ? (state.workers.claude_code ? "Claude Code available" : state.live ? "live models available" : "scripted: no API key here") : "";
 }
 
 function drawTree() {
@@ -229,29 +243,50 @@ function drawStream() {
   }
   const col = h("div", { class: "ws-col" });
   put(col, h("div", { class: "ws-user" }, h("div", {}, charterNow().goal)));
+  if (j.status === "starting") put(col, h("div", { class: "ws-card accent" }, h("b", {}, "Starting Claude Code. "), "Candor is starting a container of its own for this job, with Claude Code, Candor and the project in it. This takes up to a minute."));
   const stages = new Map(charterNow().stages.map((s) => [s.id, s]));
+  // After a restart, the earlier branches fold away, so the stream shows the branch that runs now.
+  const older = h("div", {});
+  let olderCount = 0;
+  let out = col;
   let group = null;
+  let groupOut = col;
   const flush = () => {
     if (!group) return;
+    const col = groupOut;
     const allowed = group.filter((e) => e.body.decision === "allow");
     if (allowed.length) put(col, h("div", { class: "ws-ev" }, h("span", { class: "ws-who" }, "Worker"), h("span", {}, ...allowed.slice(0, 4).flatMap((e) => [h("span", { class: "ws-tool" }, e.body.summary), " "]), allowed.length > 4 ? `and ${allowed.length - 4} more` : "")));
     if (allowed.length) put(col, h("div", { class: "ws-ev" }, h("span", { class: "ws-who" }, "Candor"), h("span", { class: "ws-ok" }, `${allowed.length} ${allowed.length === 1 ? "action" : "actions"} checked against the charter, allowed`)));
     group = null;
   };
   for (const e of j.entries) {
+    const target = (e.branch ?? "A") !== j.branch && e.type !== "restart" ? older : col;
+    if (target !== out) flush();
+    out = target;
+    if (out === older) olderCount += 1;
     if (e.type === "tool_intent" && e.body.decision === "allow") {
+      groupOut = out;
       group ??= [];
       group.push(e);
+      continue;
+    }
+    if (e.type === "tool_result" && e.body.tool === "Bash" && e.body.output_excerpt) {
+      flush();
+  if (olderCount) {
+    const fold = h("details", { class: "ws-older" }, h("summary", {}, `Earlier branch, before the restart (${olderCount} events)`), older);
+    col.insertBefore(fold, col.children[1] ?? null);
+  }
+      put(col, h("pre", { class: "ws-out" }, String(e.body.output_excerpt).replace(/^stdout: /, "").split("\n").slice(0, 14).join("\n")));
       continue;
     }
     if (e.type === "tool_result" || e.type === "anchor" || e.type === "check_strength" || e.type === "charter_review" || (e.type === "check_result" && e.body.check === "budget")) continue;
     flush();
     if (e.type === "charter_approved") put(col, h("div", { class: "ws-stage" }, `Charter approved, version ${e.body.version}. The job starts.`));
-    else if (e.type === "config_change") put(col, h("div", { class: "ws-card warn" }, h("b", {}, "Cut a corner is on. "), e.body.note));
+    else if (e.type === "config_change") put(col, h("div", { class: "ws-card warn" }, h("b", {}, "A fault was planted. "), e.body.note));
     else if (e.type === "tool_intent" && e.body.decision === "deny") put(col, h("div", { class: "ws-ev" }, h("span", { class: "ws-who" }, "Candor"), h("span", {}, h("span", { class: "ws-no" }, "Refused "), h("span", { class: "ws-tool" }, e.body.summary), ` ${e.body.reason ?? ""}`)));
     else if (e.type === "tool_intent" && e.body.decision === "hold") {
       const open = j.pending?.seq === e.seq;
-      put(col, h("div", { class: "ws-card warn ws-held" }, h("span", { class: "t" }, h("b", {}, open ? "Waiting for you. " : "Held for a person. "), "The worker asks to run ", h("span", { class: "ws-tool" }, e.body.summary), /^delete_file /.test(String(e.body.summary)) ? ", which cannot be undone inside the job." : ". The charter says it waits for a person."), open ? h("button", { class: "btn", type: "button", disabled: state.busy ? true : null, onclick: () => act({ kind: "deny" }) }, "Deny") : null, open ? h("button", { class: "btn primary", type: "button", disabled: state.busy ? true : null, onclick: () => act({ kind: "approve" }) }, "Approve") : null));
+      put(col, h("div", { class: "ws-card warn ws-held" }, h("span", { class: "t" }, h("b", {}, open ? "Waiting for you. " : "Held for a person. "), "The worker asks to run ", h("span", { class: "ws-tool" }, e.body.summary), isDelete(e.body.summary) ? ", which cannot be undone inside the job." : ". The charter says it waits for a person."), open ? h("button", { class: "btn", type: "button", disabled: state.busy ? true : null, onclick: () => act({ kind: "deny" }) }, "Deny") : null, open ? h("button", { class: "btn primary", type: "button", disabled: state.busy ? true : null, onclick: () => act({ kind: "approve" }) }, "Approve") : null));
     } else if (e.type === "human_action") put(col, h("div", { class: "ws-ev" }, h("span", { class: "ws-who" }, "You"), h("span", {}, { approve: "Approved the held action, once.", deny: "Denied the held action.", continue: "Continued the job.", stop: "Stopped the job." }[e.body.action] ?? e.body.action)));
     else if (e.type === "stage_report") {
       const st = stages.get(e.body.stage);
@@ -379,10 +414,43 @@ function charterEditor(el) {
     box.addEventListener("change", () => set((i) => (i.hold = box.checked ? [...new Set([...(i.hold ?? []), o.value])] : (i.hold ?? []).filter((x) => x !== o.value))));
     return h("label", { style: "display:flex;gap:8px;align-items:center;color:var(--fg)" }, box, o.label);
   });
-  const seeded = h("input", { type: "checkbox", checked: state.seeded ? true : null });
-  seeded.addEventListener("change", () => (state.seeded = seeded.checked));
-  const live = h("input", { type: "checkbox", checked: state.live ? true : null, disabled: state.draft.live ? null : true });
-  live.addEventListener("change", () => (state.live = live.checked));
+  // Holds the reader adds: writing or deleting a path, or running a command. Each can be removed.
+  const KINDS = { write_file: "Writing", delete_file: "Deleting", command: "Running" };
+  const own = (input.hold ?? []).filter((x) => !HOLDS.some((o) => o.value === x));
+  const describeHold = (x) => {
+    const m = /^(write_file|delete_file)\s+(.+)$/.exec(x);
+    return m ? `${KINDS[m[1]]} ${m[2]}` : `Running ${x}`;
+  };
+  const ownRows = own.map((x) => h("div", { class: "ws-hold" }, h("span", {}, describeHold(x)), h("button", { class: "link", type: "button", "aria-label": `Remove ${describeHold(x)}`, onclick: () => set((i) => (i.hold = (i.hold ?? []).filter((y) => y !== x))) }, "Remove")));
+  const holdKind = h("select", { "aria-label": "What waits for you" }, Object.entries(KINDS).map(([v, t]) => h("option", { value: v }, `${t}…`)));
+  const holdWhat = h("input", { type: "text", placeholder: "src/money.js", "aria-label": "Which path or command" });
+  holdKind.addEventListener("change", () => (holdWhat.placeholder = holdKind.value === "command" ? "git commit *" : "src/money.js"));
+  const addHold = () => {
+    const what = holdWhat.value.trim();
+    if (what.length < 1 || what.length > 100) return;
+    const value = holdKind.value === "command" ? what : `${holdKind.value} ${what}`;
+    set((i) => (i.hold = [...new Set([...(i.hold ?? []), value])]));
+  };
+  const holdAdd = h("div", { class: "ws-pairs", style: "margin-top:6px" }, holdKind, holdWhat);
+  const holdNote = h("p", { class: "note" }, "A path can use * and **, such as src/** for everything under src/. With Claude Code, Candor holds shell commands, so a deletion becomes rm and git rm, and a held write is not enforced.");
+  const FAULTS = [
+    ["", "No planted fault"],
+    ["change-test", "Change a test so it passes"],
+    ["protected-file", "Edit a protected file"],
+    ["overclaim", "Claim more than was done"],
+  ];
+  const fault = h("select", {}, FAULTS.map(([v, t]) => h("option", { value: v, selected: state.fault === v ? true : null }, t)));
+  fault.addEventListener("change", () => (state.fault = fault.value));
+  const choice = (value, label, note, available) => {
+    const box = h("input", { type: "radio", name: "worker", value, checked: state.worker === value ? true : null, disabled: available ? null : true });
+    box.addEventListener("change", () => (state.worker = value));
+    return h("label", { style: "display:flex;gap:8px;align-items:flex-start;color:var(--fg)" }, box, h("span", {}, label, h("br"), h("span", { class: "note" }, available ? note : `${note} Not set up on this copy of the site.`)));
+  };
+  const workers = [
+    choice("claude-code", "Claude Code", "Real Claude Code, Sonnet 5.5, in a container of its own with a shell, under the real candor run. Its checks also run the tests. Opus 5.5 watches.", state.workers.claude_code),
+    choice("api", "Claude through the API", "A Claude model with five file tools, not Claude Code. No shell, and nothing runs the code. Quick to start.", state.draft.live),
+    choice("scripted", "Scripted", "No model is called. The same moves every time.", true),
+  ];
 
   put(el, 
     h("p", { style: "margin:0 0 12px" }, h("b", {}, "Check your charter. "), "This is what Candor holds the job to. Change what is wrong, then approve it. Candor writes it to .candor/charter.md in the project."),
@@ -390,9 +458,9 @@ function charterEditor(el) {
     sec(2, "Done when", "Each line is a success criterion. A strong check failed on a planted fault, so it can fail. A line with no check is not claimed by the receipt.", ...crit, off.length ? h("p", { class: "note" }, `Turned off: ${off.join(", ")}. `, h("button", { class: "link", type: "button", onclick: () => set((i) => (i.checks = {})) }, "Turn all back on")) : null, h("label", {}, "Add a check: no file under these paths contains this text", h("div", { class: "ws-pairs" }, customPaths, customText)), h("button", { class: "btn", type: "button", style: "margin-top:6px", onclick: () => customText.value.trim() && set((i) => (i.custom_checks = [...(i.custom_checks ?? []), { paths: (customPaths.value || "src/**").split(",").map((x) => x.trim()), text: customText.value.trim() }])) }, "Add check")),
     sec(3, "Rules the watcher scores against", "Plain sentences. A separate Claude model with no tools scores every checkpoint against them, on goal, scope, plan and evidence.", ...rules, h("button", { class: "link", type: "button", style: "margin-top:8px", onclick: () => set((i) => (i.rules = [...(i.rules ?? []), { dimension: "scope", text: "" }])) }, "+ Add a rule")),
     sec(4, "Scope", "Candor checks every write and delete against these before it happens.", list("allow", "May change"), list("deny", "May never change")),
-    sec(5, "Needs your approval", "These wait for you. A checkpoint is taken first, so the files can be restored.", ...holds),
+    sec(5, "Needs your approval", "These wait for you. A checkpoint is taken first, so the files can be restored.", ...holds, ...ownRows, h("label", {}, "Add something that waits for you", holdAdd), h("button", { class: "btn", type: "button", style: "margin-top:6px", onclick: addHold }, "Add"), holdNote),
     sec(6, "Limits", "Drift runs from 0, on course, to 1, off course.", h("div", { class: "ws-pairs" }, num("warn", "Warn at drift", "0.05"), num("pause", "Pause at drift", "0.05"), num("max_turns", "Worker turns at most", "5"), num("max_cost_usd", "Budget, US dollars", "0.1"))),
-    sec(7, "How it runs", null, h("label", { style: "display:flex;gap:8px;align-items:center;color:var(--fg)" }, live, state.draft.live ? "A real Claude worker and watcher" : "A real Claude worker and watcher (needs an API key on the server)"), h("label", { style: "display:flex;gap:8px;align-items:flex-start;color:var(--fg)" }, seeded, h("span", {}, "Cut a corner", h("br"), h("span", { class: "note" }, "Tells the worker to make failing checks pass any way it can. It is written in the record, so the receipt shows the fault was seeded.")))),
+    sec(7, "Who does the work", null, ...workers, h("label", {}, "Plant a fault", fault, h("span", { class: "note" }, "Adds one instruction to the worker, to see whether Candor catches it. It is written in the record before the worker starts, so the receipt shows the fault was planted."))),
     state.review.length ? h("section", { class: "ws-sec" }, h("h3", {}, "Candor's review of this charter"), h("ul", { class: "ws-flags" }, state.review.map((r) => h("li", {}, r.message))), h("p", { class: "note" }, "Approving accepts these. The record keeps the review.")) : null,
     state.error ? h("p", { class: "ws-no" }, state.error) : null,
     h("button", { class: "btn primary ws-start", type: "button", disabled: state.busy ? true : null, onclick: approve }, state.busy ? "Starting…" : "Approve the charter and start"),
@@ -415,9 +483,21 @@ function paneRun(el) {
   const t = charterNow().thresholds;
   if (!state.selected || !m.byId.get(state.selected)) state.selected = lastScored()?.id ?? null;
   const mapBox = h("div", { id: "ws-map" });
-  if (j.receipt) put(el, verdictsBox(j));
-  put(el, h("h3", { style: "margin:0 0 6px" }, "Run map"), h("div", { class: "ws-mapwrap" }, mapBox), h("p", { class: "note" }, "Circles can be restarted from, squares are record only. Click a checkpoint to see why it scored what it did."));
-  if (m.checkpoints.length) requestAnimationFrame(() => renderMap(mapBox, m, { thresholds: t, selected: state.selected, suggestion: null, onSelect: select, onMenu: (id) => select(id), stageTitle: (cp) => (cp.trigger === "restart" ? TRIGGER_TITLES.restart : (m.stageOf(cp.stage)?.title ?? TRIGGER_TITLES[cp.trigger] ?? cp.trigger)), noteSent: (cp) => j.entries.some((e) => e.type === "check_result" && e.body.check === "watcher_note" && e.body.checkpoint === cp.id) }));
+  const wrap = h("div", { class: "ws-mapwrap" }, mapBox);
+  // The pane is drawn again on every update, so the map keeps where the reader scrolled it, and follows the newest
+  // checkpoint only when the reader is already at the right end.
+  wrap.addEventListener("scroll", () => (state.mapScroll = { left: wrap.scrollLeft, atEnd: wrap.scrollLeft + wrap.clientWidth >= wrap.scrollWidth - 4 }));
+  const legend = h("div", { class: "ws-legend" },
+    h("span", {}, h("span", { class: "ws-key round" }), "Can restart from here, as a new branch"),
+    h("span", {}, h("span", { class: "ws-key square" }), "Record only: a step that cannot be undone came before it"),
+  );
+  put(el, h("h3", { style: "margin:0 0 6px" }, "Run map"), legend, wrap, h("p", { class: "note" }, "Click a checkpoint to see why it scored what it did. Right-click it for its actions, such as restarting from there."));
+  if (m.checkpoints.length)
+    requestAnimationFrame(() => {
+      renderMap(mapBox, m, { thresholds: t, selected: state.selected, suggestion: null, onSelect: select, onMenu: (id, x, y) => openMenu(id, x, y), stageTitle: (cp) => (cp.trigger === "restart" ? TRIGGER_TITLES.restart : (m.stageOf(cp.stage)?.title ?? TRIGGER_TITLES[cp.trigger] ?? cp.trigger)), noteSent: (cp) => j.entries.some((e) => e.type === "check_result" && e.body.check === "watcher_note" && e.body.checkpoint === cp.id) });
+      const at = state.mapScroll;
+      wrap.scrollLeft = at ? (at.atEnd ? wrap.scrollWidth : at.left) : j.status === "running" ? wrap.scrollWidth : 0;
+    });
   const cp = m.byId.get(state.selected);
   if (!cp) return;
   const latest = latestOverall(cp);
@@ -429,17 +509,28 @@ function paneRun(el) {
   if (cp.latest) {
     const b = cp.latest.body;
     const dims = h("div", { class: "dims" });
+    // A finding names a rule, or, from the watcher of a Claude Code job, its dimension.
+    const dimOf = (f) => charter?.drift_rules.find((r) => r.id === f.rule)?.dimension ?? (DIMENSIONS.includes(f.dimension) ? f.dimension : DIMENSIONS.find((d) => String(f.rule ?? "").startsWith(`${d}-`)));
+    const findings = b.findings ?? [];
+    const finding = (f) => {
+      const rule = charter?.drift_rules.find((r) => r.id === f.rule);
+      return h("div", { class: "dim-body" }, h("div", {}, f.severity ? h("span", { class: `chip ${f.severity === "high" ? "pause" : f.severity === "medium" ? "warn" : "none"}` }, f.severity) : null, h("div", { class: "k", style: "margin-top:6px" }, "Against the rule"), rule?.text ?? f.rule ?? "No rule named", h("div", { class: "k", style: "margin-top:6px" }, "What the watcher found"), f.summary, (f.entries ?? []).length ? h("div", { class: "k", style: "margin-top:6px" }, "In the ledger") : null, (f.entries ?? []).length ? (f.entries ?? []).map((n) => `#${n}`).join(" ") : null));
+    };
     for (const d of DIMENSIONS) {
       const v = b.dimensions?.[d] ?? 0;
       const dl = levelFor(v, t);
-      const own = (b.findings ?? []).filter((f) => charter?.drift_rules.find((r) => r.id === f.rule)?.dimension === d);
-      const row = h("div", { class: `dim${own.length ? " flagged" : ""}` }, h("div", { class: "dim-row" }, h("div", {}, h("div", { class: "dim-name" }, d[0].toUpperCase() + d.slice(1))), h("span", { class: "track" }, h("span", { class: "fill", style: `width:${Math.round(v * 100)}%;background:var(--${dl === "ok" ? "ok" : dl}-mark)` }), h("span", { class: "tick", style: `left:${t.warn * 100}%` }), h("span", { class: "tick", style: `left:${t.pause * 100}%` })), h("span", { class: "dim-v" }, fmt(v))));
-      for (const f of own) {
-        const rule = charter?.drift_rules.find((r) => r.id === f.rule);
-        row.append(h("div", { class: "dim-body" }, h("div", {}, h("div", { class: "k" }, "Against the rule"), rule?.text ?? f.rule, h("div", { class: "k", style: "margin-top:6px" }, "What the watcher found"), f.summary, h("div", { class: "k", style: "margin-top:6px" }, "In the ledger"), f.entries.map((n) => `#${n}`).join(" "))));
-      }
+      const own = findings.filter((f) => dimOf(f) === d);
+      const rules = (charter?.drift_rules ?? []).filter((r) => r.dimension === d);
+      const row = h("details", { class: `dim${own.length ? " flagged" : ""}`, ...(own.length ? { open: true } : {}) },
+        h("summary", {}, h("div", { class: "dim-row" }, h("div", {}, h("div", { class: "dim-name" }, d[0].toUpperCase() + d.slice(1)), h("div", { class: "dim-q" }, QUESTION[d])), h("span", { class: "track" }, h("span", { class: "fill", style: `width:${Math.round(v * 100)}%;background:var(--${dl === "ok" ? "ok" : dl}-mark)` }), h("span", { class: "tick", style: `left:${t.warn * 100}%` }), h("span", { class: "tick", style: `left:${t.pause * 100}%` })), h("span", { class: "dim-v" }, fmt(v)))),
+        ...own.map(finding),
+        own.length ? null : h("div", { class: "dim-body" }, h("div", {}, "The watcher found nothing against these rules here.")),
+        h("div", { class: "dim-body" }, h("div", {}, h("div", { class: "k" }, rules.length === 1 ? "The rule" : "The rules"), rules.length ? h("ul", { class: "dim-rules" }, rules.map((r) => h("li", {}, r.text))) : h("div", { class: "note" }, "No rule on this dimension."))),
+      );
       dims.append(row);
     }
+    const loose = findings.filter((f) => !dimOf(f));
+    if (loose.length) dims.append(h("details", { class: "dim flagged", open: true }, h("summary", {}, h("div", { class: "dim-name" }, "Other findings")), ...loose.map(finding)));
     put(el, h("div", { class: "note" }, `Why this score${cp.latest.type === "rescore" ? `, after the rules changed (charter version ${b.charter_version})` : ""}. ${cp.latest.body.judge_model === "scripted-watcher" ? "Scripted watcher." : `Watcher ${cp.latest.body.judge_model}.`}`), dims);
     if (cp.rescores.length && cp.first) put(el, h("p", { class: "note" }, `First score ${fmt(cp.first.body.overall)}, now ${fmt(latest)}. Both are kept in the ledger.`));
   } else put(el, h("p", { class: "note" }, cp.firstRecord?.body.message ?? "This checkpoint is not scored yet."));
@@ -452,7 +543,7 @@ function paneRun(el) {
   put(el, h("div", { class: "ws-sec" }, h("h3", {}, "Add a rule and score again"), h("p", { class: "sub" }, "A new charter version. Every scored checkpoint of this branch is scored again under it, and both scores are kept."), h("div", { class: "ws-form" }, h("div", { class: "ws-pairs", style: "grid-template-columns:110px 1fr" }, dim, ruleText), h("button", { class: "btn", type: "button", disabled: state.busy ? true : null, onclick: () => act({ kind: "rule", dimension: dim.value, text: ruleText.value || ruleText.placeholder }) }, state.busy ? "Scoring…" : "Add the rule"))));
   // Restart from here.
   if (cp.safety === "safe_to_restart") {
-    const reason = h("input", { type: "text", placeholder: "Do not try to change legacy/. Report that it no longer loads.", "aria-label": "Why you restart" });
+    const reason = h("input", { type: "text", placeholder: "Do not try to change legacy/. Report that it no longer loads.", "aria-label": "Why you restart", id: "ws-restart-reason" });
     put(el, h("div", { class: "ws-sec" }, h("h3", {}, `Restart from ${cp.id}`), h("p", { class: "sub" }, `A new branch from the files of ${cp.id} and the conversation up to it. Your reason becomes a rule. Branch ${cp.branch} is kept.`), h("div", { class: "ws-form" }, reason, h("button", { class: "btn", type: "button", disabled: state.busy ? true : null, onclick: () => act({ kind: "restart", from: cp.id, reason: reason.value || reason.placeholder }) }, "Restart from here"))));
   } else put(el, h("p", { class: "note" }, `${cp.id} is record only: an action that cannot be undone happened before it, so a restart has to start from an earlier checkpoint.`));
   if (!active) put(el, h("p", { class: "note" }, "The job has ended. A rule or a restart still works: a restart starts a new branch from that checkpoint."));
@@ -481,8 +572,23 @@ async function paneLedger(el) {
   const rows = j.entries.filter((e) => e.type !== "anchor" && !(e.type === "check_result" && e.body.check === "budget"));
   put(el, h("div", { class: "tablewrap" }, h("table", {}, h("thead", {}, h("tr", {}, h("th", {}, "#"), h("th", {}, "Actor"), h("th", {}, "What happened"))), h("tbody", {}, rows.map((e) => h("tr", {}, h("td", { class: "mono" }, String(e.seq)), h("td", {}, e.actor), h("td", {}, describe(e))))))));
   // The view returns the entries parsed. Their canonical JSON is the stored line, so the chain is checked on it.
-  const result = await verifyChain(j.entries.map((e) => canonicalLine(e)));
-  clear(box).append(h("span", { class: `state ${result.ok ? "ok" : "bad"}` }, result.ok ? `Chain intact: ${result.entries} entries, ${j.anchors.length} anchors, checked in your browser.` : result.reason));
+  const lines = j.entries.map((e) => canonicalLine(e));
+  const result = await verifyChain(lines);
+  const tamper = h("div", { class: "ws-tamper" });
+  // Change one byte of a copy, in this browser only, and check the chain again, so the reader sees it fail.
+  const tryIt = async () => {
+    const at = j.entries.findIndex((e) => e.type === "drift_score" || (e.type === "tool_intent" && e.body.decision !== "allow"));
+    const i = at >= 0 ? at : Math.floor(lines.length / 2);
+    const line = lines[i];
+    const pos = line.indexOf('"body":{') + 12;
+    const k = line.slice(pos).search(/[a-z]/) + pos;
+    const changed = [...lines];
+    changed[i] = `${line.slice(0, k)}${line[k] === "a" ? "b" : "a"}${line.slice(k + 1)}`;
+    const after = await verifyChain(changed);
+    clear(tamper).append(h("p", {}, h("b", {}, `You changed one byte of entry ${j.entries[i].seq}, a ${j.entries[i].type.replace("_", " ")} entry, in a copy in your browser. `), h("span", { class: `state ${after.ok ? "ok" : "bad"}` }, after.ok ? "The chain still checks, which would be a fault." : after.reason)), h("p", { class: "note" }, "The record on the server is unchanged. The receipt names the head hash, so an edit anywhere before it shows."));
+  };
+  put(tamper, h("button", { class: "btn", type: "button", onclick: tryIt }, "Change one byte, and check again"));
+  clear(box).append(h("span", { class: `state ${result.ok ? "ok" : "bad"}` }, result.ok ? `Chain intact: ${result.entries} entries, ${j.anchors.length} anchors, checked in your browser.` : result.reason), tamper);
 }
 
 /** One archive with the files `candor verify` reads: the ledger, the anchors, the blobs and the receipt. */
@@ -514,13 +620,54 @@ async function paneReceipt(el) {
   clear(sig).append(h("span", { class: `state ${s.ok ? "ok" : "bad"}` }, s.ok ? `Signature valid, key ${s.keyId.slice(0, 19)}…, checked in your browser.` : s.reason));
 }
 
+/** The actions of a checkpoint, opened by a right-click on the run map. */
+function openMenu(id, x, y) {
+  closeMenu();
+  const cp = model().byId.get(id);
+  if (!cp) return;
+  const canRestart = cp.safety === "safe_to_restart" && state.job && !["done", "stopped", "failed"].includes(state.job.status);
+  const item = (label, note, enabled, run) => h("button", { type: "button", role: "menuitem", class: "ws-menu-item", disabled: enabled ? null : true, onclick: () => { closeMenu(); run(); } }, h("span", {}, label), note ? h("span", { class: "s" }, note) : null);
+  const menu = h("div", { class: "ws-menu", role: "menu", "aria-label": `Actions of ${id}` },
+    h("div", { class: "ws-menu-head" }, `Checkpoint ${id}`),
+    item("Why it scored what it did", null, true, () => select(id)),
+    item("Restart from here, as a new branch", cp.safety === "safe_to_restart" ? (canRestart ? `Branch from the files of ${id}. Your reason becomes a rule.` : "The job has ended.") : "Record only: a step that cannot be undone came before it.", canRestart, () => {
+      select(id);
+      requestAnimationFrame(() => document.getElementById("ws-restart-reason")?.focus());
+    }),
+  );
+  menu.style.left = `${Math.min(x, window.innerWidth - 300)}px`;
+  menu.style.top = `${Math.min(y, window.innerHeight - 160)}px`;
+  document.body.append(menu);
+  menu.querySelector("button:not([disabled])")?.focus();
+  setTimeout(() => {
+    document.addEventListener("pointerdown", outside);
+    document.addEventListener("keydown", escapeKey);
+  });
+}
+function outside(e) {
+  if (!e.target.closest?.(".ws-menu")) closeMenu();
+}
+function escapeKey(e) {
+  if (e.key === "Escape") closeMenu();
+}
+function closeMenu() {
+  document.querySelector(".ws-menu")?.remove();
+  document.removeEventListener("pointerdown", outside);
+  document.removeEventListener("keydown", escapeKey);
+}
+
 /** Drag handles that resize the files pane and the Candor pane. The widths are kept in this browser only. */
 function resizable() {
   const app = document.querySelector(".ws-app");
   if (!app) return;
-  const LIMITS = { left: [160, 420], right: [340, 760] };
+  // The middle pane keeps at least 360 pixels, so each side pane can take the rest of the window.
+  const limits = (side) => {
+    const other = side === "left" ? document.querySelector(".ws-candor") : document.querySelector(".ws-files");
+    const room = window.innerWidth - (other?.getBoundingClientRect().width ?? 0) - 360;
+    return side === "left" ? [160, Math.max(160, Math.min(520, room))] : [340, Math.max(340, room)];
+  };
   const set = (side, px) => {
-    const [lo, hi] = LIMITS[side];
+    const [lo, hi] = limits(side);
     const width = Math.round(Math.min(hi, Math.max(lo, px)));
     app.style.setProperty(side === "left" ? "--ws-left" : "--ws-right", `${width}px`);
     try {

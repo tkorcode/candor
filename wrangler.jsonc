@@ -9,14 +9,27 @@
   "compatibility_flags": ["nodejs_compat"],
   "assets": { "directory": "./site", "binding": "ASSETS" },
   // One Durable Object per hosted job in the workspace (SPEC 4.5). It keeps the job state and moves the job on with alarms.
-  "durable_objects": { "bindings": [{ "name": "CANDOR_JOBS", "class_name": "CandorJob" }] },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["CandorJob"] }],
+  "durable_objects": {
+    "bindings": [
+      { "name": "CANDOR_JOBS", "class_name": "CandorJob" },
+      // One container per Claude Code job (src/web/container.ts, container/Dockerfile).
+      { "name": "CANDOR_CONTAINER", "class_name": "CandorContainer" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["CandorJob"] },
+    { "tag": "v2", "new_sqlite_classes": ["CandorContainer"] }
+  ],
+  // The image builds Candor from source, so it needs no build step before the deploy. At most five jobs at once.
+  "containers": [{ "class_name": "CandorContainer", "image": "./container/Dockerfile", "image_build_context": ".", "max_instances": 5, "instance_type": "standard-1" }],
   // Spending limits and the cache of the live watcher.
   "kv_namespaces": [{ "binding": "CANDOR_KV", "id": "557a9e4ac93f4f9786155cf5ec9c2f8b" }],
   "vars": {
     "CANDOR_WATCHER_MODEL": "claude-sonnet-5-5",
     // The worker of a hosted job.
     "CANDOR_WORKER_MODEL": "claude-haiku-5-5",
+    // The worker of a Claude Code job. Its watcher, set in container/Dockerfile, is Opus 5.5, as in the evaluation.
+    "CANDOR_CLAUDE_CODE_MODEL": "claude-sonnet-5-5",
     // New hosted jobs per UTC day, across all readers.
     "CANDOR_JOBS_PER_DAY": "200",
     // The most the live watcher of the console spends in a day, in US dollars. A hosted job has its own budget.

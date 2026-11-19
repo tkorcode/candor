@@ -18,6 +18,7 @@ import { Ledger } from "../core/ledger/ledger.js";
 import { createRedactor } from "../core/ledger/redact.js";
 import type { Actor, EntryType, LedgerEntry } from "../core/ledger/types.js";
 import { type RestartSuggestion, suggestRestart } from "../core/restart-point.js";
+import { shareProject, shareSocket, userIsolation } from "../core/run/isolation.js";
 import { anchorPath, ledgerPath, operatorKeyPath, runDir, socketPath, statePath } from "../core/paths.js";
 import { callDaemon } from "./client.js";
 import { applyEntry, type DriftRecord, emptyState, type Held, minutesElapsed, openApproval, type RunState } from "./runstate.js";
@@ -776,6 +777,8 @@ export async function startDaemon(options: DaemonOptions): Promise<Daemon> {
     try {
       exportSnapshot(gitDir, cpRef, worktree);
       for (const dir of allowedFolders()) mkdirSync(join(worktree, dir), { recursive: true });
+      const iso = userIsolation();
+      if (iso) shareProject(worktree, iso);
       const fork = takeSnapshot({ gitDir, workdir: worktree, ref: `refs/candor/${run}/${next}/1`, message: `restart of ${cp.id} as branch ${next}`, date: now() });
       forkCommit = fork.commit;
       tree = fork.tree;
@@ -915,6 +918,13 @@ export async function startDaemon(options: DaemonOptions): Promise<Daemon> {
         });
         return result;
       }
+      case "seed": {
+        // A fault planted on purpose, for an evaluation or a demonstration: the instruction the worker is given is
+        // written in the record, so the receipt cannot pass it off as the worker's own choice.
+        const fault = typeof body.fault === "string" ? clip(body.fault, 40) : "unnamed";
+        append("config_change", "worker", { source: "seeded_fault", fault, file_path: "worker instructions", blocked: false, note: typeof body.note === "string" ? clip(body.note, 400) : `The fault ${fault} was planted in the worker's instructions.` });
+        return { status: 200, body: { seeded: fault } };
+      }
       case "start": {
         // The harness starts or ends a stretch of work by one claude call. Time and spend are counted from these.
         prepareRun();
@@ -1048,6 +1058,8 @@ export async function startDaemon(options: DaemonOptions): Promise<Daemon> {
   });
   try {
     chmodSync(socket, 0o600);
+    const iso = userIsolation();
+    if (iso) shareSocket(socket, iso);
     ownInode = statSync(socket).ino;
     heartbeatGap();
     prepareRun();

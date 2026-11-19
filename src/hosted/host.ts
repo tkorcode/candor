@@ -1,3 +1,4 @@
+import { isFaultName } from "./named-faults.js";
 import type { Transport } from "../watcher/judge.js";
 import { fetchTransport } from "../watcher/judge.js";
 import { buildCharter, type CharterInput, charterMarkdown, DEFAULTS, reviewHosted } from "./charter.js";
@@ -39,6 +40,7 @@ export function view(job: JobState) {
     statusReason: job.statusReason,
     branch: job.branch,
     seededFault: job.seededFault,
+    fault: job.fault ?? null,
     charters: job.charters,
     files: job.files,
     original: job.original,
@@ -92,8 +94,8 @@ export async function act(job: JobState, config: HostConfig, action: Action): Pr
 }
 
 /** A new job from a charter the reader approved. Live when the host has an API key and the reader asked for it. */
-export function start(id: string, input: CharterInput, config: HostConfig, options: { live?: boolean; seededFault?: boolean }): JobState {
-  return createJob(id, input, { mode: options.live !== false && live(config) ? "live" : "scripted", seededFault: options.seededFault ?? false });
+export function start(id: string, input: CharterInput, config: HostConfig, options: { live?: boolean; seededFault?: boolean; fault?: unknown }): JobState {
+  return createJob(id, input, { mode: options.live !== false && live(config) ? "live" : "scripted", seededFault: options.seededFault ?? false, fault: isFaultName(options.fault) ? options.fault : null });
 }
 
 /** A charter drafted from the goal the reader typed, and its review. Scripted when there is no API key. */

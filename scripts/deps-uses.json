@@ -1,6 +1,7 @@
 {
   "acorn": "Parses JavaScript for the code-reading checks of the hosted code migration",
   "@biomejs/biome": "Lint",
+  "@cloudflare/containers": "Starts the container of a Claude Code job in the workspace and intercepts its calls to the API",
   "@types/node": "Type declarations for Node",
   "typescript": "Type checking and the build",
   "vitest": "Unit and integration tests",

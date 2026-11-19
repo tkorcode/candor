@@ -1,0 +1,12 @@
+# Only what container/Dockerfile copies: package files, the source and its build settings, bin, the coverage statement, the sample project and container/.
+*
+!package.json
+!package-lock.json
+!bin/
+!src/
+!tsconfig.json
+!tsconfig.build.json
+!docs/COVERAGE.md
+!demo/invoices/original/
+!container/as-worker
+!container/controller.mjs

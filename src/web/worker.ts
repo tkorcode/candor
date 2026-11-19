@@ -2,6 +2,7 @@ import type { HostConfig } from "../hosted/host.js";
 import { CandorJob, type JobObjectEnv } from "./job-object.js";
 import { charterRoute, json } from "./job-routes.js";
 import { handleRescore, type KvStore, type RescoreEnv } from "./rescore-endpoint.js";
+import { forwardToApi, type GatewayEnv } from "./gateway.js";
 import { type TrialEnv, trialGate } from "./trial-gate.js";
 
 /**
@@ -20,6 +21,9 @@ export interface WorkerEnv extends RescoreEnv, JobObjectEnv, TrialEnv {
 
 export const RESCORE_PATH = "/api/rescore";
 export { CandorJob };
+export { CandorContainer } from "./container.js";
+// Outbound interception of the container needs this export (@cloudflare/containers).
+export { ContainerProxy } from "@cloudflare/containers";
 
 const newId = () => `r_${Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => b.toString(16).padStart(2, "0")).join("")}`;
 
@@ -33,7 +37,8 @@ async function jobRequest(request: Request, env: WorkerEnv, path: string): Promi
       const day = new Date().toISOString().slice(0, 10);
       const count = Number((await env.CANDOR_KV.get(`jobs:${day}`)) ?? "0");
       if (count >= Number(env.CANDOR_JOBS_PER_DAY ?? "200")) return json(429, { error: "The workspace has started its jobs for today. Try again tomorrow (UTC)." });
-      const running = await env.CANDOR_KV.get(`job-ip:${ip}`);
+      // A private trial is behind its token, so its runs of the same job are not limited per address.
+      const running = env.CANDOR_TRIAL === "1" ? null : await env.CANDOR_KV.get(`job-ip:${ip}`);
       if (running) return json(429, { error: "You started a job less than three minutes ago. Use that one, or try again in a few minutes.", job: running });
       const id = newId();
       await env.CANDOR_KV.put(`jobs:${day}`, String(count + 1), { expirationTtl: 172800 });
@@ -59,7 +64,13 @@ export default {
       const config: HostConfig = { ...(env.ANTHROPIC_API_KEY ? { apiKey: env.ANTHROPIC_API_KEY } : {}), ...(env.CANDOR_WATCHER_MODEL ? { watcherModel: env.CANDOR_WATCHER_MODEL } : {}) };
       return (await charterRoute(request, path, config)) ?? json(404, { error: "No such route." });
     }
+    // Which workers this copy of the site can run, for the choice on the page.
+    if (path === "/api/workers") return json(200, { claude_code: Boolean(env.CANDOR_CONTAINER && env.ANTHROPIC_API_KEY), live: Boolean(env.ANTHROPIC_API_KEY) });
     if (path === "/api/job" || path.startsWith("/api/job/")) return jobRequest(request, env, path);
+    // On a private trial only, behind the trial token: the gateway, so a container on another machine can be tested.
+    if (env.CANDOR_TRIAL === "1" && path.startsWith("/api/gateway/")) return forwardToApi(request, env, path.slice("/api/gateway".length), "trial");
+    // On a private trial only: the hosts containers asked for and were refused.
+    if (env.CANDOR_TRIAL === "1" && path === "/api/trial/egress") return json(200, { refused: (await (env.CANDOR_KV as GatewayEnv["CANDOR_KV"])?.list?.({ prefix: "egress:" }))?.keys.map((k) => k.name.slice(7)) ?? [] });
     return env.ASSETS.fetch(request);
   },
 };

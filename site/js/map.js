@@ -46,6 +46,14 @@ export function renderMap(container, model, view) {
     if (own.length > 0) {
       const first = pos(own[0]);
       const last = pos(own.at(-1));
+      // From the first record-only checkpoint on, a step that cannot be undone has happened: shade that stretch.
+      const locked = own.find((c) => c.safety === "record_only");
+      if (locked) {
+        const x0 = pos(locked).x - COL / 2 + 8;
+        const x1 = last.x + COL / 2 - 8;
+        svg.append(s("rect", { x: x0, y: y - R - 34, width: Math.max(0, x1 - x0), height: R * 2 + 92, rx: 10, fill: "var(--soft)", class: "locked-band" }, s("title", {}, "Record only from here: a step that cannot be undone came before these checkpoints, so a restart has to start earlier.")));
+        svg.append(s("text", { x: x0 + 8, y: y - R - 20, class: "lane-sub" }, "record only from here"));
+      }
       svg.append(s("line", { x1: first.x, x2: last.x, y1: y, y2: y, stroke: "var(--line)", "stroke-width": 3, "stroke-dasharray": b.superseded ? "2 7" : null, "stroke-linecap": "round" }));
     }
     // The restart edge from the fork point to the first checkpoint of the branch, with its reason. It leaves
@@ -97,6 +105,7 @@ export function renderMap(container, model, view) {
         }
       },
     });
+    g.append(s("title", {}, cp.safety === "safe_to_restart" ? `${cp.id}: click for why it scored what it did. Right-click to restart from here, as a new branch.` : `${cp.id}: record only, a step that cannot be undone came before it. Click for why it scored what it did.`));
     g.append(s("circle", { class: "halo", cx: x, cy: y, r: R + 9, fill: "transparent" }));
     if (isSuggested) g.append(s("circle", { cx: x, cy: y, r: R + 8, fill: "none", stroke: "var(--accent)", "stroke-width": 2, "stroke-dasharray": "4 4" }));
     g.append(s("circle", { class: "ring", cx: x, cy: y, r: R + 5, fill: "none", stroke: isSelected ? "var(--accent)" : "transparent", "stroke-width": 2.5 }));

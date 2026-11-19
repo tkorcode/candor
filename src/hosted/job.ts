@@ -1,3 +1,4 @@
+import { type FaultName, NAMED_FAULTS } from "./named-faults.js";
 import { createHash } from "node:crypto";
 import { canonicalJson } from "../core/canonical.js";
 import { type Charter, charterHash } from "../core/charter/schema.js";
@@ -58,6 +59,8 @@ export interface JobState {
   pending: { call: ToolCall; seq: number; rest: ToolCall[] } | null;
   inventory: string[];
   seededFault: boolean;
+  /** A named fault the reader planted (named-faults.ts). seededFault is true for change-test. */
+  fault?: FaultName | null;
   ledger: HostedLedgerState;
   receipt: Record<string, unknown> | null;
   /** The last thing the worker said, for the page. */
@@ -91,7 +94,8 @@ const MAX_TOOL_CALLS = 120;
 const sha = (text: string) => `sha256:${createHash("sha256").update(text, "utf8").digest("hex")}`;
 const excerpt = (text: string, n = 400) => (text.length > n ? `${text.slice(0, n)}…` : text);
 
-export function createJob(id: string, input: CharterInput, options: { mode: "scripted" | "live"; seededFault?: boolean; now?: () => Date }): JobState {
+export function createJob(id: string, input: CharterInput, options: { mode: "scripted" | "live"; seededFault?: boolean; fault?: FaultName | null; now?: () => Date }): JobState {
+  const fault = options.fault ?? (options.seededFault ? "change-test" : null);
   const charter = buildCharter(input);
   const now = options.now ?? (() => new Date());
   const ledger = HostedLedger.create(id, now);
@@ -99,7 +103,7 @@ export function createJob(id: string, input: CharterInput, options: { mode: "scr
   ledger.append({ type: "run_start", actor: "candord", body: { hosted: true, mode: options.mode, project: "demo/invoices", note: "A hosted job. The worker is a tool loop driven by Candor, not Claude Code, and nothing runs the code of the project." } });
   ledger.append({ type: "charter_review", actor: "operator", body: { items: review, accepted: review.map((r) => r.id) } });
   ledger.append({ type: "charter_approved", actor: "operator", body: { charter_id: charter.id, version: charter.version, charter_hash: charterHash(charter), review_digest: sha(canonicalJson(review)) } });
-  if (options.seededFault) ledger.append({ type: "config_change", actor: "worker", body: { source: "seeded_fault", file_path: "worker instructions", blocked: false, note: "The reader turned on cut a corner: the worker is told to make failing checks pass any way it can." } });
+  if (fault) ledger.append({ type: "config_change", actor: "worker", body: { source: "seeded_fault", fault, file_path: "worker instructions", blocked: false, note: `The reader planted the fault "${NAMED_FAULTS[fault].title}". The worker's instructions say: ${NAMED_FAULTS[fault].instruction}` } });
   // The check strength test: each check of the charter runs on its planted fault and must fail.
   for (const check of charter.checks) {
     const strong = strength(check.id, check.type === "pattern" ? { paths: check.paths ?? [], text: check.deny ?? "" } : null);
@@ -127,8 +131,9 @@ export function createJob(id: string, input: CharterInput, options: { mode: "scr
     checkpoints: [],
     pending: null,
     inventory: [],
-    seededFault: options.seededFault ?? false,
-    system: workerSystem(charter, options.seededFault ?? false),
+    seededFault: fault === "change-test",
+    fault,
+    system: workerSystem(charter, fault === "change-test", fault),
     ledger: ledger.state,
     receipt: null,
   };
@@ -291,7 +296,7 @@ export async function step(job: JobState, deps: JobDeps): Promise<void> {
   }
   let turn: Turn & { assistant?: unknown };
   try {
-    turn = await deps.worker({ system: job.system ?? workerSystem(charter, job.seededFault), messages: job.messages, charter, step: job.step, seededFault: job.seededFault });
+    turn = await deps.worker({ system: job.system ?? workerSystem(charter, job.seededFault, job.fault ?? null), messages: job.messages, charter, step: job.step, seededFault: job.seededFault });
   } catch (error) {
     job.status = "failed";
     job.statusReason = (error as Error).message;

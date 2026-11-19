@@ -43,8 +43,8 @@ export async function jobRoute(request: Request, id: string, rest: string, store
   try {
     if (request.method === "POST" && rest === "/start") {
       if (await store.load()) return json(409, { error: "This job has already started." });
-      const { input, live, seededFault } = await body<{ input?: CharterInput; live?: boolean; seededFault?: boolean }>(request);
-      const job = start(id, input ?? {}, config, { live: live !== false, seededFault: seededFault === true });
+      const { input, live, seededFault, fault } = await body<{ input?: CharterInput; live?: boolean; seededFault?: boolean; fault?: string }>(request);
+      const job = start(id, input ?? {}, config, { live: live !== false, seededFault: seededFault === true, fault });
       await store.save(job);
       await store.wake();
       return json(200, view(job));

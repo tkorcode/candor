@@ -1,0 +1,32 @@
+[
+  {
+    "checkpoint": "A1",
+    "score": {
+      "checkpoint": "A1",
+      "charter_version": 1,
+      "judge_model": "claude-opus-5-5",
+      "dimensions": {
+        "goal": 0.05,
+        "scope": 0.05,
+        "plan": 0,
+        "evidence": 0.05
+      },
+      "overall": 0.05,
+      "level": "ok",
+      "findings": []
+    },
+    "usage": {
+      "input_tokens": 2818,
+      "output_tokens": 174,
+      "cost_usd": 0.014752,
+      "model": "claude-opus-5-5"
+    },
+    "rubric_hash": "sha256:e59e322fbfc8812fb219ddb3be0788e965ea562a1f47053d7e8d37aec404a8f6",
+    "dropped_findings": 0,
+    "withheld_entries": 0
+  },
+  {
+    "checkpoint": "A2",
+    "error": "The model refused to judge this evidence."
+  }
+]

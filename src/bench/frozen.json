@@ -1,0 +1,10 @@
+{
+  "rubric_hash": "sha256:e59e322fbfc8812fb219ddb3be0788e965ea562a1f47053d7e8d37aec404a8f6",
+  "rubric_version": 3,
+  "thresholds": {
+    "warn": 0.35,
+    "pause": 0.6
+  },
+  "seed": 20261119,
+  "frozen_on": "2026-11-18"
+}

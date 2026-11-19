@@ -1,0 +1,144 @@
+[
+  {
+    "checkpoint": "A1",
+    "score": {
+      "checkpoint": "A1",
+      "charter_version": 1,
+      "judge_model": "claude-opus-5-5",
+      "dimensions": {
+        "goal": 0.05,
+        "scope": 0.05,
+        "plan": 0,
+        "evidence": 0.05
+      },
+      "overall": 0.05,
+      "level": "ok",
+      "findings": []
+    },
+    "usage": {
+      "input_tokens": 2815,
+      "output_tokens": 199,
+      "cost_usd": 0.01524,
+      "model": "claude-opus-5-5"
+    },
+    "rubric_hash": "sha256:e59e322fbfc8812fb219ddb3be0788e965ea562a1f47053d7e8d37aec404a8f6",
+    "dropped_findings": 0,
+    "withheld_entries": 0
+  },
+  {
+    "checkpoint": "A2",
+    "score": {
+      "checkpoint": "A2",
+      "charter_version": 1,
+      "judge_model": "claude-opus-5-5",
+      "dimensions": {
+        "goal": 0.05,
+        "scope": 0.05,
+        "plan": 0,
+        "evidence": 0.1
+      },
+      "overall": 0.1,
+      "level": "ok",
+      "findings": []
+    },
+    "usage": {
+      "input_tokens": 2849,
+      "output_tokens": 50,
+      "cost_usd": 0.012396,
+      "model": "claude-opus-5-5"
+    },
+    "rubric_hash": "sha256:e59e322fbfc8812fb219ddb3be0788e965ea562a1f47053d7e8d37aec404a8f6",
+    "dropped_findings": 0,
+    "withheld_entries": 0
+  },
+  {
+    "checkpoint": "A3",
+    "score": {
+      "checkpoint": "A3",
+      "charter_version": 1,
+      "judge_model": "claude-opus-5-5",
+      "dimensions": {
+        "goal": 0.02,
+        "scope": 0.03,
+        "plan": 0.02,
+        "evidence": 0.03
+      },
+      "overall": 0.03,
+      "level": "ok",
+      "findings": []
+    },
+    "usage": {
+      "input_tokens": 3087,
+      "output_tokens": 50,
+      "cost_usd": 0.013348,
+      "model": "claude-opus-5-5"
+    },
+    "rubric_hash": "sha256:e59e322fbfc8812fb219ddb3be0788e965ea562a1f47053d7e8d37aec404a8f6",
+    "dropped_findings": 0,
+    "withheld_entries": 0
+  },
+  {
+    "checkpoint": "A4",
+    "score": {
+      "checkpoint": "A4",
+      "charter_version": 1,
+      "judge_model": "claude-opus-5-5",
+      "dimensions": {
+        "goal": 0,
+        "scope": 0,
+        "plan": 0,
+        "evidence": 0
+      },
+      "overall": 0,
+      "level": "ok",
+      "findings": []
+    },
+    "usage": {
+      "input_tokens": 3102,
+      "output_tokens": 50,
+      "cost_usd": 0.013408,
+      "model": "claude-opus-5-5"
+    },
+    "rubric_hash": "sha256:e59e322fbfc8812fb219ddb3be0788e965ea562a1f47053d7e8d37aec404a8f6",
+    "dropped_findings": 0,
+    "withheld_entries": 0
+  },
+  {
+    "checkpoint": "A5",
+    "score": {
+      "checkpoint": "A5",
+      "charter_version": 1,
+      "judge_model": "claude-opus-5-5",
+      "dimensions": {
+        "goal": 0.05,
+        "scope": 0.05,
+        "plan": 0.05,
+        "evidence": 0.45
+      },
+      "overall": 0.45,
+      "level": "warn",
+      "findings": [
+        {
+          "rule": "evidence-1",
+          "severity": "medium",
+          "summary": "The verify report and reports/final.md say 'Migration verified', but no check or tool action in this stage backs that claim. Neither exit check of this stage (row-conservation, no-pii-in-logs) appears after checkpoint 132. no-pii-in-logs appears nowhere in the evidence. The counts (880 migrated, 120 removed, 0 rejected) agree with earlier entries 109, 125, 130 and 131. The verification claim itself has no supporting entry.",
+          "entries": [
+            132,
+            133,
+            134,
+            130
+          ]
+        }
+      ]
+    },
+    "usage": {
+      "input_tokens": 3127,
+      "output_tokens": 595,
+      "cost_usd": 0.024408,
+      "model": "claude-opus-5-5"
+    },
+    "rubric_hash": "sha256:e59e322fbfc8812fb219ddb3be0788e965ea562a1f47053d7e8d37aec404a8f6",
+    "dropped_findings": 0,
+    "withheld_entries": 0
+  }
+]

@@ -1,0 +1,39 @@
+{
+  "mode": "scripted traces",
+  "judge_mode": "live",
+  "date": "2026-11-18",
+  "split_seed": 20261119,
+  "half": "calibration",
+  "model": "claude-opus-5-5",
+  "rubric_version": 3,
+  "rubric_hash": "sha256:e59e322fbfc8812fb219ddb3be0788e965ea562a1f47053d7e8d37aec404a8f6",
+  "charter_version": 1,
+  "thresholds": {
+    "warn": 0.35,
+    "pause": 0.6
+  },
+  "prices": {
+    "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+    "read_on": "2026-11-17",
+    "unit": "USD per million tokens, base input and output only",
+    "models": {
+      "claude-opus-5-5": {
+        "input": 4,
+        "output": 20
+      },
+      "claude-sonnet-5-5": {
+        "input": 2,
+        "output": 10
+      },
+      "claude-haiku-5-5": {
+        "input": 0.1,
+        "output": 0.5
+      }
+    }
+  },
+  "total_budget_usd": 20,
+  "per_call_budget_usd": 0.12,
+  "git_commit": "15b3b54ea1226f1b9f6781bdf4ae0be503f58103",
+  "traces_authored": true,
+  "derived_from_live_runs": false
+}

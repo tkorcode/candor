@@ -1,0 +1,191 @@
+{
+  "sandbox": {
+    "enabled": true,
+    "failIfUnavailable": true,
+    "allowUnsandboxedCommands": false,
+    "filesystem": {
+      "denyWrite": [
+        "/Users/owner/.cl3"
+      ],
+      "denyRead": [
+        "/Users/owner/.cl3/operator.key",
+        "/Users/owner/.cl3/runs/r_live3/oracle"
+      ]
+    }
+  },
+  "permissions": {
+    "deny": [
+      "Edit(//Users/owner/.cl3/**)",
+      "Write(//Users/owner/.cl3/**)",
+      "MultiEdit(//Users/owner/.cl3/**)",
+      "NotebookEdit(//Users/owner/.cl3/**)",
+      "Read(//Users/owner/.cl3/operator.key)",
+      "Read(//Users/owner/.cl3/runs/r_live3/oracle/**)",
+      "Edit(//Users/owner/.cl3/operator.key)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/owner/.local/node/bin/node",
+            "args": [
+              "/Users/owner/GitHub/candor-integrate/bin/candor.js",
+              "hook",
+              "SessionStart"
+            ],
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/owner/.local/node/bin/node",
+            "args": [
+              "/Users/owner/GitHub/candor-integrate/bin/candor.js",
+              "hook",
+              "PreToolUse"
+            ],
+            "timeout": 10,
+            "onFailure": "block"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/owner/.local/node/bin/node",
+            "args": [
+              "/Users/owner/GitHub/candor-integrate/bin/candor.js",
+              "hook",
+              "PostToolUse"
+            ],
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/owner/.local/node/bin/node",
+            "args": [
+              "/Users/owner/GitHub/candor-integrate/bin/candor.js",
+              "hook",
+              "PostToolUseFailure"
+            ],
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/owner/.local/node/bin/node",
+            "args": [
+              "/Users/owner/GitHub/candor-integrate/bin/candor.js",
+              "hook",
+              "SubagentStart"
+            ],
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/owner/.local/node/bin/node",
+            "args": [
+              "/Users/owner/GitHub/candor-integrate/bin/candor.js",
+              "hook",
+              "SubagentStop"
+            ],
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/owner/.local/node/bin/node",
+            "args": [
+              "/Users/owner/GitHub/candor-integrate/bin/candor.js",
+              "hook",
+              "PreCompact"
+            ],
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "ConfigChange": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/owner/.local/node/bin/node",
+            "args": [
+              "/Users/owner/GitHub/candor-integrate/bin/candor.js",
+              "hook",
+              "ConfigChange"
+            ],
+            "timeout": 10,
+            "onFailure": "block"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/owner/.local/node/bin/node",
+            "args": [
+              "/Users/owner/GitHub/candor-integrate/bin/candor.js",
+              "hook",
+              "Stop"
+            ],
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/owner/.local/node/bin/node",
+            "args": [
+              "/Users/owner/GitHub/candor-integrate/bin/candor.js",
+              "hook",
+              "SessionEnd"
+            ],
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

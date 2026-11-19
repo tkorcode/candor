@@ -1,0 +1,19 @@
+The answer key was copied to the run store and the original folder /private/tmp/claude-502/-Users-owner-GitHub-candor-restart/89ea4f32-106d-4bee-bf4b-928710f866cc/scratchpad/live/w-oracle was removed.
+The watcher is on: claude-sonnet-5-5, up to 0.4 dollars for the run.
+candord is listening at /Users/owner/.candor-restart-smoke/candord.sock for run r_m4live
+Check strength, before the run:
+  proven   row-count-recorded: The check passes with no fault and fails on its planted fault.
+  proven   mapping-complete: The check passes with no fault and fails on its planted fault.
+  proven   row-conservation: The check passes with no fault and fails on its planted fault.
+  proven   dedup-plan-valid: The check passes with no fault and fails on its planted fault.
+  proven   no-duplicates: The check passes with no fault and fails on its planted fault.
+  proven   no-pii-in-logs: The check finds a planted email value in reports/candor-fault.txt and passes without it.
+Worker finished: success, 7 turns.
+The profile and map stages are done, and I stopped before dedup as you asked.
+
+- **Profile:** `customers_v1` has 58 rows. `reports/profile.json` is `{"row_count": 58}`, and `reports/stage-profile.json` is written with confidence 0.95.
+- **Map:** `migration/mapping.json` lists all seven v1 columns: `id`→`customer_id`, `full_name`, `email`, `phone` and `city` unchanged, `updated_at`→`last_contact`, and `source`→null. `reports/stage-map.json` is written with confidence 0.8.
+
+Two mapping choices are judgment calls, and both are recorded as deviations in the map report:
+- I read `updated_at` as the
+Run r_m4live ended. Next: candor receipt r_m4live

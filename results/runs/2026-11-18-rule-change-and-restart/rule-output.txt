@@ -1,0 +1,7 @@
+The watcher is on: claude-sonnet-5-5, up to 0.4 dollars for the run.
+candord is listening at /Users/owner/.candor-restart-smoke/candord.sock for run r_m4live
+Rule op-1 added. The charter is now version 2.
+Earlier checkpoints scored again (the first score, the score before this change, and the new score):
+  A1: first 0.03 ok, before this change 0.03 ok, now 0.03 ok
+  A2: first 0.12 ok, before this change 0.12 ok, now 0.1 ok
+  A3: first not judged, not scored again (was_skipped)

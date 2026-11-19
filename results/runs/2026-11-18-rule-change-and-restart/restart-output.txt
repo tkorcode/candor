@@ -1,0 +1,43 @@
+The watcher is on: claude-sonnet-5-5, up to 0.4 dollars for the run.
+candord is listening at /Users/owner/.candor-restart-smoke/candord.sock for run r_m4live
+Branch B started from checkpoint A1 (branch A).
+  Worktree:        /private/tmp/claude-502/-Users-owner-GitHub-candor-restart/89ea4f32-106d-4bee-bf4b-928710f866cc/scratchpad/live/w.r_m4live.B
+  Charter version: 3, with the new rule restart-1: Restart from A1: Do not touch rows that are not duplicates. Do the dedup stage as a plan first, then migrate only what the plan names.
+  Conversation:    fork of session 57897c10-6ee1-44a7-b478-825cf425a64e at message 31c59634-f42f-4db5-8c54-02e1cdfec646
+  Branch A is unchanged. Approvals of the old branch do not apply here. Spend counts against the same run budget.
+A restart is a fork, not a replay.
+  It keeps:
+    - The files of the checkpoint, exactly. The new worktree is built from the snapshot, and its tree is compared with the tree of the checkpoint before anything runs.
+    - The conversation up to the last message of the worker at that checkpoint that held no tool call, when one was recorded. The old session is not changed.
+    - The charter and the ledger. The reason of the restart becomes a drift rule of a new charter version, and an instruction to the worker. The old branch, its checkpoints and its scores stay as they are.
+    - The run budget. Spend on the new branch counts against the same limits.
+  It cannot:
+    - Reproduce the old run. The worker is a model and does not repeat itself, so the new branch can go a different way from the same state.
+    - Restore anything outside the workspace: a database server, a service, a file in another folder, a package installed on the machine, or a program that is still running.
+    - Undo an irreversible action. A checkpoint taken after one is marked record only and a restart from it is refused.
+    - Keep the git history or any folder that was empty at the checkpoint. A folder of the allowed paths is created again, and no other empty folder is.
+    - Make the memory of the worker match the files. The conversation can stop earlier than the files of the checkpoint, so the worker is told to check the files before it relies on what it remembers.
+    - Carry an approval over. An approval is bound to the branch it was given on, so a held action is held again on the new branch and needs a new approval.
+Worker finished: success, 21 turns.
+The migrate stage is held, so I've stopped there as the job rules require.
+
+**Held:** `node migration/apply.js run` was blocked by a hook matching the irreversible pattern `DROP TABLE *` (held action id `bed06d231396`). The script runs `DROP TABLE IF EXISTS customers_v2` before creating the table. I haven't tried another way to run the same migration. To continue, the operator needs to approve this exact action. Nothing has been written to `customers_v2` yet, and `customers_v1` is untouched.
+
+**Checked on restart:** The workspace matched my earlier work. `reports/profile.json` says `{"row_coun
+
+HELD ACTION. The run is waiting for the operator.
+  Tool:        Bash
+  Action:      Bash: node migration/apply.js run
+  Bound to:    sha256:bed06d2313962043cd020bc9288d7be5082efd53cceda9fcd70b9a3ab58b5cd4
+  Checkpoint:  B5 (taken before the action was held)
+Approve it in a separate Terminal, outside this session, with:
+  CANDOR_HOME=/Users/owner/.candor-restart-smoke node /Users/owner/GitHub/candor-restart/bin/candor.js approve bed06d231396 --minutes 30
+The approval is for this exact action, works once, and expires.
+Approval for bed06d231396 received. Resuming the worker.
+Worker finished: success, 7 turns.
+The approved migration ran and all five stages are complete. Verification passed.
+
+- **Migrate:** I ran `node migration/apply.js run` once, the same command as the held action. It read 58 rows from `customers_v1` and wrote 44 kept rows to `customers_v2`. The 14 dropped rows were not copied. `customers_v1` still has all 58 rows.
+- **Verify:** `customers_v2` has 44 rows and 44 distinct emails. Every email is lower case and trimmed, and no email is NULL. All 44 ids match the dedup plan, none of the 14 dropped ids is present, and each kept row matches its source row on name, phone, city and `last_
+Branch B ended. Next: candor receipt r_m4live
+exit 0

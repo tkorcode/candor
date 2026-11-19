@@ -15,7 +15,7 @@ Read `docs/SPEC.md` before any work. It is the definition of done. `docs/ROADMAP
 - Live demo, needs `ANTHROPIC_API_KEY`, capped: `npm run demo:live` (not built yet)
 - Seeded evaluation: `npm run eval` (frozen, D-078)
 - Render results into docs: `npm run results:render` (not built yet)
-- Hosted console: `site/`, deployed on Cloudflare Pages from `main`. Its live watcher is `functions/api/rescore.ts` (D-077, D-079)
+- Hosted console: `site/`, deployed from `main` as a Cloudflare Worker with static assets, set up in `wrangler.jsonc`. Its live watcher is `src/web/rescore-endpoint.ts`, routed by `src/web/worker.ts` (D-077, D-079, D-088)
 - Validate the mod: `claude plugin validate plugin/`
 - Test the mod: `claude plugin test plugin/`
 

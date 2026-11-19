@@ -6,7 +6,7 @@ The product is Candor. The command is `candor` and the daemon is `candord`. The 
 
 ## 1. Purpose
 
-Models now carry out jobs that run for hours or days. Nobody can watch such a job as it runs, and a log written by the agent cannot be its own witness. Candor is an oversight layer for long-running Claude Code jobs that makes them possible to supervise by exception. Claude Code does the work. It records the job outside the worker, has a separate model watcher each stage against the goal of the job, lets a person change a rule or restart from a checkpoint without losing what happened, and ends with a signed trust receipt that someone who was not there can approve from.
+Models now carry out jobs that run for hours or days. Nobody can watch such a job as it runs, and a log written by the agent cannot be its own witness. Candor is an oversight layer for long-running Claude Code jobs that lets a person leave the job running and step in only when something needs a decision. Claude Code does the work. It records the job outside the worker, has a separate model watcher each stage against the goal of the job, lets a person change a rule or restart from a checkpoint without losing what happened, and ends with a signed trust receipt that someone who was not there can approve from.
 
 It must show four things:
 
@@ -17,9 +17,9 @@ It must show four things:
 
 ## 2. Why now
 
-Agents already sustain runs of a working day and longer. What is still missing is a watcher dependable enough that people can supervise by exception: a model that watches the work of another agent and says at each stage whether the job is still on course. Candor builds the oversight around that watcher and measures the watcher instead of assuming it.
+Agents already sustain runs of a working day and longer. What is still missing is a watcher dependable enough that people can step in only when something needs a decision. That is a model that watches the work of another agent and says at each stage whether the job is still on course. Candor builds the oversight around that watcher and measures the watcher instead of assuming it.
 
-Product metric: **human review minutes per agent hour**. Lower means more supervision by exception.
+Product metric: **human review minutes per agent hour**. Lower means people spend less time watching and more time deciding.
 
 Why oversight is needed even as models improve: a model cannot be its own witness. Research in `docs/SOURCES.md` shows agents tampering with their own traces and evading reasoning monitors. The record and the watcher must sit outside the worker. As the watcher becomes more accurate, fewer checkpoints need a person, so Candor gains from every improvement in the models it runs.
 
@@ -55,7 +55,7 @@ The demo must not look like rewind plus a log viewer. If a screen or a feature o
 | Drata | Inventories agents, checks each action against a per-agent policy, keeps a tamper-evident record | Governs a fleet by permission. Public description does not cover whether one job stayed on its goal |
 | This project | Scores each stage of one job against its goal, re-scores, restarts with the lesson, ends with a receipt | Does not inventory a fleet or replace an auditor |
 
-**Non-goals.** Earned autonomy (rules loosening for a job type as it proves reliable, approved by a person) is roadmap only. Fleet inventory. Replacing an auditor. Mapping to many compliance frameworks (one worked example only). Multi-agent delegation chains. Any claim that a run was secure or correct.
+**Non-goals.** Earned autonomy (rules loosening for a job type as it shows itself reliable, approved by a person) is roadmap only. Fleet inventory. Replacing an auditor. Mapping to many compliance frameworks (one worked example only). Multi-agent delegation chains. Any claim that a run was secure or correct.
 
 **Words.** Say evidence, never proof. Say tamper-evident, never tamper-proof.
 
@@ -230,7 +230,7 @@ Inside the worker session                 Outside the worker
 | `watcher` | Independent watcher. Charter, stage and evidence in, structured drift score out |
 | `daemon` (`candord`) | Owns the run store, serves the CLI and the plugin, assigns the actor of every entry, tracks spend across branches, records rule changes, scores earlier checkpoints again, and runs restarts. It writes a heartbeat at start and records a gap it finds when it starts again |
 | `cli` (`candor`) | `charter new`, `charter review`, `charter approve`, `run`, `status`, `approve`, `continue`, `pause`, `checkpoint`, `rule`, `restart`, `receipt`, `verify`, `doctor`, `hook` |
-| `web`, `functions`, `site` | The hosted console and its one live endpoint (D-077, D-079) |
+| `web`, `site` | The hosted console, its one live endpoint, and the Cloudflare Worker that serves them (D-077, D-079, D-088) |
 | `plugin` | Claude Code plugin with the hooks and a pane spike. The worker learns how to report stages from its system prompt |
 | `bench` | Seeded failures, scripted traces, the evaluation runner and scoring |
 | `demo` | The synthetic project and its charter |

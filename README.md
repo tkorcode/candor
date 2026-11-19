@@ -208,7 +208,7 @@ Candor was built with Claude Code from a written specification (`docs/SPEC.md`),
 | `src/watcher/` | The watcher, its rubric and its evidence bundle |
 | `src/cli/` | The `candor` command |
 | `src/bench/` | The seeded failures and the evaluation runner |
-| `src/web/`, `functions/`, `site/` | The live watcher endpoint and the Candor Console |
+| `src/web/`, `site/`, `wrangler.jsonc` | The live watcher endpoint, the Candor Console, and the Cloudflare Worker that serves them |
 | `plugin/` | The Claude Code plugin, with hooks and a pane |
 | `demo/` | The synthetic demo project and its charter |
 | `examples/charters/` | Charters for other kinds of long job |

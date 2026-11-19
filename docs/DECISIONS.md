@@ -13,6 +13,13 @@ Alternatives considered:
 What it costs or leaves open:
 ```
 
+## D-088: The hosted console runs as a Cloudflare Worker with static assets
+Date: 2026-11-18
+Decision: The console in `site/` is deployed as a Cloudflare Worker with static assets, set up in `wrangler.jsonc`. `src/web/worker.ts` sends `POST /api/rescore` to the live watcher handler in `src/web/rescore-endpoint.ts` and serves every other path from the static files. The KV store for the spending limits, the `nodejs_compat` flag, the watcher model and the limits are in the config. The API key is a secret set in the dashboard. Cloudflare builds with `npm run site:data` and deploys with `npx wrangler deploy`. A test checks the routing. This replaces the Pages Function of D-077.
+Why: The Cloudflare dashboard now creates a Worker when a repository is connected, and a Pages Function in `functions/` is not picked up by a Worker. A Worker with static assets serves the same files and the same handler, and keeps the settings in the repository where they can be reviewed.
+Alternatives considered: Keeping Pages through the command line. It depends on a flow the dashboard no longer offers. Serving the static files from somewhere else and the endpoint from a Worker. Two deployments and a cross-origin call for one console.
+What it costs or leaves open: `wrangler` is not a dependency of Candor. Cloudflare runs it at deploy time with `npx`, so the licence check does not cover it. The KV namespace ID is in the config. It is not a secret, but a fork must create its own store and change it.
+
 ## D-087: The worker starts with no MCP servers and no claude.ai connectors
 Date: 2026-11-18
 Decision: `claude -p` for the worker runs with `--strict-mcp-config` and no `--mcp-config`, and with `ENABLE_CLAUDEAI_MCP_SERVERS=false` in its environment. The worker has the tools Candor allows and nothing else. Tests check the flag on first, resumed and forked sessions, and the environment.
@@ -81,7 +88,7 @@ Date: 2026-11-18
 Decision: The hosted console is a static site with one function, `POST /api/rescore` (`functions/api/rescore.ts`, logic in `src/web/rescore-endpoint.ts`). A reader picks a checkpoint of a recorded run and writes one drift rule: a dimension and at most 300 characters. The function reads the evidence bundle stored with the first score of that checkpoint from the files the site serves (the ledger, and the blob store for a large bundle, whose content must match its name), adds the rule as `reader-1` after the rules of the charter, and calls the same `judge()` as `candord`, with the same rubric. The answer is labelled live and says it is not part of the signed record. Nothing is written to the ledger of the run. Spending is bounded by a budget for each call, a daily total and an hourly count per reader address kept in a key-value store, a cache that answers a repeated question without a call, and the spend limit of the API key. Without its key, its model setting or its store the function does not run, and says so.
 Why: Re-scoring under a new rule is one of the ideas the product is built on. A reader who can ask the real watcher about recorded evidence sees it work without installing anything.
 Alternatives considered: Letting the reader send evidence. It would let anyone use the key as a general model endpoint. Running a whole worker on request. It is the third level of the plan and needs a runner, so it is decided separately.
-What it costs or leaves open: The key-value store is not atomic, so the daily total can overshoot by the calls in flight, and the limit of the key itself is the hard stop. The rule of the reader is outside the data block, as the rules of the operator are, so it can tell the watcher anything. The answer is schema-bound and labelled as written by the reader. The function has been tested with a stand-in model here, not yet on the hosting platform.
+What it costs or leaves open: The key-value store is not atomic, so the daily total can overshoot by the calls in flight, and the limit of the key itself is the hard stop. The rule of the reader is outside the data block, as the rules of the operator are, so it can tell the watcher anything. The answer is schema-bound and labelled as written by the reader. The function has been tested with a stand-in model here, not yet on the hosting platform. The Pages Function was later replaced by a Cloudflare Worker with the same handler (D-088).
 
 ## D-076: The receipt reads rule changes, re-scores and restarts from the ledger, and says what a fork keeps and cannot
 Date: 2026-11-18

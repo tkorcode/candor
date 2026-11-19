@@ -322,7 +322,8 @@ function openMenu(id, x, y) {
   const m = state.model;
   const cp = m.byId.get(id);
   if (!cp) return;
-  select(id);
+  // Redraw only when the menu is for another checkpoint, so sections the reader opened or closed stay as they are.
+  if (state.selected !== id || state.tab !== "checkpoint") select(id);
   const command = `candor restart ${cp.id} --reason "<what went wrong>"`;
   const item = (label, action, enabled = true) =>
     h("button", { type: "button", role: "menuitem", disabled: enabled ? null : true, onclick: () => {

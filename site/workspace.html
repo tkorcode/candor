@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<title>Candor workspace</title>
+<meta name="description" content="Start a real code migration under Candor: draft and approve a charter, watch every action and checkpoint, decide held steps, restart from a checkpoint, and get a signed trust receipt.">
+<link rel="stylesheet" href="css/console.css">
+<link rel="stylesheet" href="css/workspace.css">
+<script type="module" src="js/workspace.js"></script>
+</head>
+<body class="ws">
+<div class="ws-app">
+  <aside class="ws-files" aria-label="Project files">
+    <div class="ws-proj"><div class="ws-proj-name">invoices</div><div class="ws-proj-sub">Sample project for this demo</div></div>
+    <ul class="ws-tree" id="tree"></ul>
+    <div class="ws-foot"><a href="index.html">Recorded runs</a> · <a href="https://github.com/tkorcode/candor">Source</a><br>Candor is an independent project, not made by Anthropic.</div>
+  </aside>
+
+  <main class="ws-main">
+    <header class="ws-top" id="top"></header>
+    <div class="ws-stream" id="stream" aria-live="polite"></div>
+    <div class="ws-viewer" id="viewer" hidden></div>
+    <div class="ws-composer" id="composer"></div>
+  </main>
+
+  <aside class="ws-candor" aria-label="Candor">
+    <div class="ws-candor-head"><span class="mark" aria-hidden="true"></span>Candor<span class="ws-mode" id="mode"></span></div>
+    <div id="needs"></div>
+    <div class="tabs" role="tablist" id="tabs"></div>
+    <div class="ws-candor-body" id="pane"></div>
+  </aside>
+</div>
+</body>
+</html>

@@ -58,3 +58,11 @@ describe("the sample project", () => {
     expect(out).toMatch(/# fail 0/);
   });
 });
+
+describe("the copy of the sample project the Worker carries", () => {
+  it("matches demo/invoices. Run npm run hosted:sample after a change there", async () => {
+    const { ORIGINAL, REFERENCE } = await import("./sample.generated.js");
+    expect(ORIGINAL).toEqual(original);
+    expect(REFERENCE).toEqual(reference);
+  });
+});

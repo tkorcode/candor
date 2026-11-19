@@ -13,6 +13,13 @@ Alternatives considered:
 What it costs or leaves open:
 ```
 
+## D-092: A hosted job lets a reader run Candor from a link
+Date: 2026-11-19
+Decision: The workspace at `/workspace.html` runs a real job under Candor in a Cloudflare Durable Object (SPEC 4.5, M9). The job is a code migration of the sample service in `demo/invoices`. A Claude model drafts the charter from what the reader asks; the reader checks and edits it, and the charter review runs on it. The worker is a Claude model with six tools on files held in memory. Every tool call goes through Candor first. A stage report ends in a checkpoint with the exit checks, a copy of the files and of the conversation, an anchor and the watcher. A deletion waits for the reader. A rule can be added with re-scores, and any checkpoint can be restarted from as a fork. The ledger (`src/hosted/ledger.ts`) writes the entries of the local product with the same actors, schemas, redaction, blob rule and hash chain, and reuses its verifier, the charter review, the evidence bundle and the watcher, so `candor verify` accepts a downloaded record. The checks read the code with a parser (acorn) and never run it, and each has a planted fault. With no API key the same job runs with a scripted worker and a scripted watcher, which answer through the same code and are labelled scripted.
+Why: A recorded run shows what Candor did once. A reader learns more by setting the rules, watching a job break one, and deciding what happens next. Running Claude Code itself in the cloud needs a sandbox per job, so the hosted job keeps everything Candor adds and drives a plain tool loop instead.
+Alternatives considered: Replaying a recorded run in a workspace layout, which is not a job the reader runs. Claude Code in a container per job, with the hooks and the daemon, which needs per-job sandboxes, cost limits and abuse protection that do not fit yet. A hosted agent sandbox, where the tests could run, which is the next step.
+What it costs or leaves open: The hosted job does not exercise the hooks or the daemon, and its worker is not Claude Code. Nothing runs the code, so the criterion that the behaviour is unchanged is not claimed. Each job signs its receipt with a key made for that job. The scripted watcher gives fixed answers, so a scripted job shows the mechanics, not how a model scores.
+
 ## D-091: A success criterion with no check is shown as not claimed
 Date: 2026-11-19
 Decision: The verdict line of the console and the outcome column of its receipt view say that a success criterion with no check is not claimed, and count it apart from a criterion that failed its check. The demo keeps criterion s3 with no check, and the demo checks and the evaluation stay frozen (D-078).

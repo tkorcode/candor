@@ -74,14 +74,31 @@ The charters are in `examples/charters/`, with a guide to writing one for your o
 
 ## See it
 
-The Candor Console at https://candor.tkorcode.workers.dev shows recorded runs in a browser. You can follow the story of the run and its map of branches and checkpoints, see why any checkpoint scored what it did, see the rules and their re-scores, read the ledger with registers for a compliance owner, and open the receipt. The console checks the hash chain, the anchors and the signature in your browser. The hosted version can also ask the watcher to score a checkpoint again under a rule you write.
+### Run a job yourself
 
-To open it on your machine, run these two commands and then open http://localhost:8787. The live watcher needs the hosted version, because only that holds the API key.
+The Candor workspace at https://candor.tkorcode.workers.dev/workspace.html runs a real job under Candor, from a link, with nothing to install. The job is a code migration of a small sample service in `demo/invoices`, from CommonJS to ES modules.
+
+1. Describe the job. Candor drafts a charter: the goal, what counts as done and the check behind each line, the rules the watcher scores against, what may change, what waits for you, and the limits. You check and change it, then approve it.
+2. Watch the job. A Claude worker works through five stages. Candor checks every write and delete before it happens, refuses what is out of scope, takes a checkpoint at the end of each stage, and has a separate Claude watcher score it.
+3. Decide. Deleting the old entry point waits for your approval. At a warn the worker gets a note, at a pause the job waits for you. From any checkpoint you can add a rule and see earlier checkpoints scored again, or restart from it on a new branch with your reason as a rule.
+4. Check the record. The job ends with a signed trust receipt. Download the record and run `candor verify` on it.
+
+The hosted job shares the ledger format, the charter, the checks interface, the watcher and the receipt with the local product. It does not use the daemon or the hooks: the worker is a tool loop that Candor drives, not Claude Code, and the code of the project is never run, so its tests do not run either. The receipt says so. With no API key the same job runs with a scripted worker and watcher, labelled scripted.
+
+To run the workspace on your machine:
 
 ```bash
 npm install
 npm run site:serve
 ```
+
+Then open http://localhost:8787/workspace.html. It uses the scripted worker and watcher unless `ANTHROPIC_API_KEY` is set.
+
+### Recorded runs
+
+The Candor Console at https://candor.tkorcode.workers.dev shows recorded runs in a browser. You can follow the story of the run and its map of branches and checkpoints, see why any checkpoint scored what it did, see the rules and their re-scores, read the ledger with registers for a compliance owner, and open the receipt. The console checks the hash chain, the anchors and the signature in your browser. The hosted version can also ask the watcher to score a checkpoint again under a rule you write.
+
+To open it on your machine, run `npm run site:serve` and open http://localhost:8787. The live watcher needs the hosted version, because only that holds the API key.
 
 The recorded runs are real runs, labelled live. Each has its ledger and the stream of every worker session, and the first two end with a signed receipt.
 

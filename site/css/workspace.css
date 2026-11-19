@@ -1,0 +1,99 @@
+/* The workspace: three panes, plain and light. Tokens come from console.css. */
+body.ws { overflow: hidden; }
+.ws-app { display: grid; grid-template-columns: 220px minmax(0, 1fr) 470px; height: 100vh; }
+.ws-files { background: var(--soft); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-width: 0; }
+.ws-proj { padding: 16px 16px 10px; }
+.ws-proj-name { font-weight: 600; font-size: 15px; }
+.ws-proj-sub { color: var(--muted); font-size: 12.5px; }
+.ws-tree { list-style: none; margin: 0; padding: 4px 8px; overflow: auto; flex: 1; font-size: 13.5px; }
+.ws-tree li button { width: 100%; display: flex; align-items: center; gap: 6px; background: none; border: 0; border-radius: 7px; padding: 4px 8px; color: var(--fg); text-align: left; min-height: 28px; }
+.ws-tree li button:hover, .ws-tree li button[aria-current="true"] { background: var(--line); }
+.ws-tree .dir { color: var(--muted); font-size: 12.5px; padding: 8px 8px 2px; }
+.ws-tree .tagr { margin-left: auto; font-size: 11px; font-weight: 600; }
+.ws-tree .tagr.m { color: var(--warn); }
+.ws-tree .tagr.n { color: var(--ok); }
+.ws-tree .tagr.d { color: var(--pause); }
+.ws-tree .tagr.never { color: var(--muted); font-weight: 400; }
+.ws-tree .gone { text-decoration: line-through; color: var(--muted); }
+.ws-foot { padding: 10px 16px 14px; font-size: 11.5px; color: var(--muted); border-top: 1px solid var(--line); }
+.ws-main { display: flex; flex-direction: column; min-width: 0; position: relative; background: var(--surface); }
+.ws-top { display: flex; align-items: center; gap: 12px; padding: 12px 28px; border-bottom: 1px solid var(--line); font-size: 13px; color: var(--muted); min-height: 48px; flex-wrap: wrap; }
+.ws-top b { color: var(--fg); font-weight: 600; }
+.ws-top .grow { flex: 1; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--none); margin-right: 6px; }
+.dot.running { background: var(--ok-mark); }
+.dot.held, .dot.paused { background: var(--warn-mark); }
+.dot.done { background: var(--fg); }
+.dot.failed, .dot.stopped { background: var(--pause-mark); }
+.ws-stream { flex: 1; overflow: auto; padding: 8px 0 24px; }
+.ws-col { max-width: 700px; margin: 0 auto; padding: 0 28px; }
+.ws-stage { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12.5px; margin: 20px 0 6px; }
+.ws-stage::after { content: ""; height: 1px; background: var(--line); flex: 1; }
+.ws-ev { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 10px; padding: 4px 0; font-size: 13.5px; }
+.ws-who { color: var(--muted); font-size: 12.5px; padding-top: 1px; }
+.ws-tool { font: 12.5px var(--mono); background: var(--soft); border-radius: 6px; padding: 1px 6px; overflow-wrap: anywhere; }
+.ws-ok { color: var(--ok); }
+.ws-no { color: var(--pause); }
+.ws-say { background: var(--soft); border-radius: 12px; padding: 9px 12px; overflow-wrap: anywhere; }
+.ws-user { display: flex; justify-content: flex-end; margin: 14px 0; }
+.ws-user > div { background: var(--soft); border-radius: 14px; padding: 9px 13px; max-width: 85%; }
+.ws-card { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin: 6px 0; font-size: 13.5px; background: var(--surface); }
+.ws-card.warn { border-left: 3px solid var(--warn-mark); }
+.ws-card.pause { border-left: 3px solid var(--pause-mark); }
+.ws-card.accent { border-left: 3px solid var(--fg); }
+.ws-card .s { color: var(--muted); font-size: 12.5px; }
+.ws-card button { margin-top: 6px; }
+.ws-held { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ws-held .t { flex: 1 1 260px; }
+.ws-empty { max-width: 520px; margin: 18vh auto 0; text-align: center; color: var(--muted); padding: 0 24px; }
+.ws-empty h1 { font-size: 1.15rem; color: var(--fg); margin-bottom: 6px; }
+.ws-composer { border-top: 1px solid var(--line); padding: 12px 28px 16px; }
+.ws-box { max-width: 700px; margin: 0 auto; border: 1px solid var(--line); border-radius: 16px; padding: 10px 12px; background: var(--surface); box-shadow: 0 2px 10px rgb(0 0 0 / 0.04); }
+.ws-box textarea { width: 100%; border: 0; resize: none; min-height: 48px; padding: 2px; background: transparent; }
+.ws-box textarea:focus { outline: none; }
+.ws-box .row { display: flex; gap: 8px; align-items: center; justify-content: flex-end; }
+.ws-hint { max-width: 700px; margin: 6px auto 0; font-size: 12px; color: var(--muted); }
+.ws-viewer { position: absolute; inset: 48px 0 0 0; background: var(--surface); overflow: auto; padding: 16px 28px; z-index: 5; }
+.ws-viewer pre { font: 12.5px/1.5 var(--mono); background: var(--soft); border-radius: 10px; padding: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ws-candor { border-left: 1px solid var(--line); display: flex; flex-direction: column; min-width: 0; background: var(--surface); }
+.ws-candor-head { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--line); font-weight: 600; }
+.ws-candor-head .mark { width: 20px; height: 20px; border-radius: 6px; }
+.ws-candor-head .mark::after { inset: 5px; }
+.ws-mode { margin-left: auto; font-weight: 400; font-size: 12px; color: var(--muted); }
+.ws-candor .tabs { margin: 0; padding: 0 10px; }
+.ws-candor .tabs:empty { display: none; }
+.ws-candor-body { padding: 14px 16px 24px; overflow: auto; flex: 1; }
+.ws-needs { margin: 12px 16px 0; border: 1px solid var(--warn-mark); background: var(--warn-bg); border-radius: 12px; padding: 10px 12px; font-size: 13.5px; }
+.ws-needs h3 { margin: 0 0 4px; font-size: 14px; }
+.ws-needs .acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.ws-sec { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; }
+.ws-sec h3 { margin: 0 0 4px; font-size: 14px; }
+.ws-sec .sub { color: var(--muted); font-size: 12.5px; margin: 0 0 8px; }
+.ws-sec label { display: block; font-size: 12.5px; color: var(--muted); margin-top: 8px; }
+.ws-sec textarea, .ws-sec input[type="text"], .ws-sec input[type="number"] { width: 100%; font-size: 13.5px; min-height: 36px; }
+.ws-sec input[type="number"] { border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; font: inherit; }
+.ws-rule { display: grid; grid-template-columns: 96px minmax(0, 1fr) 28px; gap: 6px; margin-top: 6px; align-items: start; }
+.ws-rule select { min-height: 36px; font-size: 13px; padding: 4px 6px; }
+.ws-rule textarea { min-height: 36px; }
+.ws-x { background: none; border: 0; color: var(--muted); font-size: 18px; line-height: 1; padding: 6px; }
+.ws-crit { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; padding: 5px 0; border-bottom: 1px solid var(--line); }
+.ws-crit:last-child { border-bottom: 0; }
+.ws-crit .t { flex: 1; }
+.badge { font-size: 11px; font-weight: 600; border-radius: 999px; padding: 2px 8px; white-space: nowrap; background: var(--soft); color: var(--muted); }
+.badge.strong { background: var(--ok-bg); color: var(--ok); }
+.badge.weak { background: var(--warn-bg); color: var(--warn); }
+.ws-pairs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.ws-flags { margin: 0; padding-left: 18px; font-size: 12.5px; color: var(--warn); }
+.ws-start { width: 100%; margin-top: 4px; }
+.ws-verdicts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+.ws-verdict { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
+.ws-verdict .k { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.ws-verdict .v { font-weight: 600; }
+.ws-verdict .v.ok { color: var(--ok); }
+.ws-verdict .v.warn { color: var(--warn); }
+.ws-verdict .v.pause { color: var(--pause); }
+.ws-mapwrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; padding: 4px; }
+.ws-mapwrap svg { display: block; }
+.ws-form { display: grid; gap: 6px; margin-top: 8px; }
+@media (max-width: 1100px) { .ws-app { grid-template-columns: 200px minmax(0, 1fr) 360px; } }
+@media (max-width: 860px) { body.ws { overflow: auto; } .ws-app { grid-template-columns: 1fr; height: auto; } .ws-files { max-height: 220px; } .ws-main { min-height: 70vh; } .ws-viewer { position: fixed; inset: 0; } }

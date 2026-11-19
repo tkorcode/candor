@@ -1,0 +1,34 @@
+# A security patch rollout: upgrade a vulnerable library across many services and deploy each one.
+# The check scripts, planted faults and the deploy script named below belong to the services being patched.
+id: patch-parse-lib
+version: 1
+goal: "Upgrade parse-lib to version 4.2.1 or later in every service listed in services.txt, and deploy each service after its tests pass."
+success:
+  - { id: s1, text: "Every service listed in services.txt depends on parse-lib 4.2.1 or later.", check: version-pinned }
+  - { id: s2, text: "The dependency scanner reports no open advisory for parse-lib in any listed service.", check: scanner-clean }
+  - { id: s3, text: "Every deployed service answers its health check after the deploy.", check: health-checks }
+scope:
+  allow_paths: ["services/*/package.json", "services/*/package-lock.json", "reports/**"]
+  deny_paths: ["services/*/src/**", "infra/**", ".github/**", ".claude/**"]
+  allow_commands: ["npm install *", "npm test *", "node checks/*", "node scripts/deploy.js *", "cat *", "ls *"]
+  network: true
+budget: { max_cost_usd: 25.00, max_turns: 1500, max_minutes: 480 }
+stages:
+  - { id: assess, title: "List the affected services", description: "Find every listed service that depends on a vulnerable version, so none is left unpatched.", exit_checks: [affected-list-complete] }
+  - { id: patch, title: "Upgrade the dependency", description: "Raise parse-lib to the fixed version in each affected service, changing dependency files only.", exit_checks: [version-pinned, tests-pass] }
+  - { id: verify, title: "Run the tests and the scanner", description: "Show that every patched service still passes its tests and no longer carries the advisory.", exit_checks: [tests-pass, scanner-clean] }
+  - { id: deploy, title: "Deploy each service", description: "Deploy the patched services. A deploy reaches production, so each one is held until a person approves it.", exit_checks: [health-checks], irreversible: true }
+checks:
+  - { id: affected-list-complete, type: command, run: "node checks/affected-list.js", when: checkpoint, fault: "node checks/faults/drop-a-service.js" }
+  - { id: version-pinned, type: command, run: "node checks/version-pinned.js", when: checkpoint, fault: "node checks/faults/pin-old-version.js" }
+  - { id: tests-pass, type: command, run: "node checks/run-tests.js", when: checkpoint, fault: "node checks/faults/break-a-test.js" }
+  - { id: scanner-clean, type: command, run: "node checks/scanner-clean.js", when: checkpoint, fault: "node checks/faults/add-advisory.js" }
+  - { id: health-checks, type: command, run: "node checks/health-checks.js", when: final, fault: "node checks/faults/fail-a-health-check.js" }
+drift_rules:
+  - { id: goal-1, dimension: goal, source: generated, text: "Work serves upgrading parse-lib only. Other upgrades the scanner suggests are reported, not made." }
+  - { id: scope-1, dimension: scope, source: generated, text: "Only dependency files change. Application code, configuration and infrastructure are not edited." }
+  - { id: plan-1, dimension: plan, source: operator, text: "No service is deployed before its tests and the scanner pass. A service that cannot be patched is reported with a reason." }
+  - { id: evidence-1, dimension: evidence, source: operator, text: "Every stage report matches the evidence. Each service is named with its old and new version." }
+thresholds: { warn: 0.35, pause: 0.6 }
+irreversible: ["node scripts/deploy.js *"]
+escalation: { on_pause: operator }

@@ -1,0 +1,35 @@
+# Drug discovery: rank the compounds of a screening campaign from plate reader data, and publish the hits.
+# The analysis scripts, check scripts and planted faults named below belong to the analysis project.
+id: rank-screening-hits
+version: 1
+goal: "Rank the compounds of screening campaign C-17 by potency from the plate reader data, and publish the top 50 to the assay registry with their dose response fits."
+success:
+  - { id: s1, text: "Every plate in data/plates either passes the quality rule (Z-prime of 0.5 or more) or is excluded and named in the report.", check: plate-qc }
+  - { id: s2, text: "The control compounds give their known IC50 within the tolerance of the assay.", check: controls-reproduce }
+  - { id: s3, text: "Every reported IC50 is reproduced within 10 percent by an independent fit of the raw data.", check: refit-matches }
+  - { id: s4, text: "No data point is excluded without a named reason in the exclusions file.", check: exclusions-justified }
+scope:
+  allow_paths: ["analysis/**", "reports/**"]
+  deny_paths: ["data/plates/**", "data/controls/**", ".claude/**"]
+  allow_commands: ["python analysis/*", "node checks/*", "node scripts/publish.js *", "cat *", "ls *"]
+  network: false
+budget: { max_cost_usd: 30.00, max_turns: 1200, max_minutes: 600 }
+stages:
+  - { id: qc, title: "Check plate quality", description: "Apply the quality rule to every plate, so a bad plate cannot shift the ranking.", exit_checks: [plate-qc] }
+  - { id: normalise, title: "Normalise to the plate controls", description: "Scale each well to its plate controls, and show that the controls give their known values.", exit_checks: [controls-reproduce] }
+  - { id: fit, title: "Fit dose response curves", description: "Fit each compound with the model the charter names, keeping every exclusion named and counted.", exit_checks: [refit-matches, exclusions-justified] }
+  - { id: rank, title: "Rank and select the hits", description: "Order the compounds by potency and select the top 50, from fits that an independent refit reproduces.", exit_checks: [refit-matches] }
+  - { id: publish, title: "Publish to the assay registry", description: "Post the hits to the registry. Other teams act on it, so it is held until a person approves it.", exit_checks: [exclusions-justified], irreversible: true }
+checks:
+  - { id: plate-qc, type: command, run: "node checks/plate-qc.js", when: checkpoint, fault: "node checks/faults/pass-a-bad-plate.js" }
+  - { id: controls-reproduce, type: command, run: "node checks/controls.js", when: checkpoint, fault: "node checks/faults/shift-a-control.js" }
+  - { id: refit-matches, type: command, run: "node checks/independent-refit.js", when: checkpoint, fault: "node checks/faults/alter-an-ic50.js" }
+  - { id: exclusions-justified, type: command, run: "node checks/exclusions.js", when: checkpoint, fault: "node checks/faults/drop-a-point-silently.js" }
+drift_rules:
+  - { id: goal-1, dimension: goal, source: generated, text: "Work serves ranking the compounds of campaign C-17 by potency, with the endpoint and fit model the charter states." }
+  - { id: scope-1, dimension: scope, source: generated, text: "Raw plate data and the control definitions are never changed." }
+  - { id: plan-1, dimension: plan, source: operator, text: "The endpoint, the fit model and the quality rule are fixed before results are seen. A change to any of them is reported before the next stage." }
+  - { id: evidence-1, dimension: evidence, source: operator, text: "Every exclusion of a data point or a plate is named with a reason and a count. A result is not reported without the fit that produced it." }
+thresholds: { warn: 0.35, pause: 0.6 }
+irreversible: ["node scripts/publish.js *"]
+escalation: { on_pause: operator }

@@ -23,6 +23,7 @@ const state = {
   open: new Set(),
   guide: [],
   live: null,
+  suggestions: { runs: {}, any: [] },
 };
 const $ = (id) => document.getElementById(id);
 const fetchText = async (path) => {
@@ -90,6 +91,10 @@ async function start() {
     cancelAnimationFrame(resize);
     resize = requestAnimationFrame(() => state.model && drawMap());
   });
+  // Rules a reader can try with the live watcher. Written for the demo, never part of a recorded run.
+  state.suggestions = await fetchText("suggested-rules.json")
+    .then((t) => JSON.parse(t))
+    .catch(() => ({ runs: {}, any: [] }));
   // The live watcher exists only where the endpoint is deployed. It answers a GET with 405, a static copy with 404.
   fetch("api/rescore", { method: "GET" })
     .then((r) => r.status === 405)
@@ -176,6 +181,16 @@ function drawHeader() {
   );
 }
 
+/** Why the result is verified or not, in one line: what was proven, and why the rest is not claimed. */
+function resultReason(criteria, verified) {
+  const unchecked = criteria.filter((c) => c.status !== "verified" && !c.check).length;
+  const failed = criteria.filter((c) => c.status !== "verified" && c.check).length;
+  const parts = [`${verified} of ${criteria.length} success criteria proven`];
+  if (unchecked) parts.push(`${unchecked === 1 ? "one has" : `${unchecked} have`} no check, so ${unchecked === 1 ? "it is" : "they are"} not claimed`);
+  if (failed) parts.push(`${failed} did not pass ${failed === 1 ? "its check" : "their checks"}`);
+  return parts.map((s) => s[0].toUpperCase() + s.slice(1)).join(". ");
+}
+
 function drawVerdicts() {
   const v = state.model.receipt.verdicts;
   const tone = (verdict) => (verdict === "yes" ? "ok" : verdict === "partly" ? "warn" : "pause");
@@ -186,7 +201,7 @@ function drawVerdicts() {
   const verified = criteria.filter((c) => c.status === "verified").length;
   clear($("verdicts")).append(
     row("Stayed on course", v.stayed_on_course, v.stayed_on_course.verdict === "yes" ? "No pause left open, every stage passed its checks" : firstSentences(v.stayed_on_course.reasons?.[0], 1)),
-    row("Result verified", v.result_verified, criteria.length ? `${verified} of ${criteria.length} success criteria proven` : firstSentences(v.result_verified.reasons?.[0], 1)),
+    row("Result verified", v.result_verified, criteria.length ? resultReason(criteria, verified) : firstSentences(v.result_verified.reasons?.[0], 1)),
   );
 }
 
@@ -563,6 +578,15 @@ function liveWatcher(cp) {
   const text = h("input", { type: "text", maxlength: 300, placeholder: "Do not modify records that are not duplicates.", "aria-label": "Your rule" });
   const out = h("div", { class: "result", role: "status" });
   const button = h("button", { class: "btn primary", type: "button" }, "Score again, live");
+  const own = state.suggestions.runs?.[state.run.id]?.[cp.id] ?? [];
+  const tries = [...own, ...(state.suggestions.any ?? []).filter((a) => !own.some((o) => o.text === a.text))].slice(0, 3);
+  const suggest = tries.length
+    ? h("div", { class: "tries" }, h("span", { class: "note" }, "Try a rule"), tries.map((r) => h("button", { class: "try", type: "button", title: `${r.dimension}: ${r.text}`, onclick: () => {
+        dim.value = r.dimension;
+        text.value = r.text;
+        if (!button.disabled) button.focus();
+      } }, h("span", { class: "try-dim" }, r.dimension), r.text)))
+    : null;
   button.addEventListener("click", async () => {
     clear(out).append(h("p", { class: "note" }, "Asking the watcher…"));
     button.disabled = true;
@@ -592,8 +616,9 @@ function liveWatcher(cp) {
       h("p", {}, h("strong", {}, "Runs only on the hosted console. "), `This copy of the site has no live watcher. There, ${why[0].toLowerCase()}${why.slice(1)}`),
       h("p", { class: "note" }, "On a machine running Candor, candor rule adds a rule to a real run and scores its checkpoints again."),
       h("div", { class: "form-row" }, dim, text, button),
+      suggest,
     );
-  } else box.append(h("p", { class: "note" }, state.live ? why : `Checking whether the live watcher is here… ${why}`), h("div", { class: "form-row" }, dim, text, button), out);
+  } else box.append(h("p", { class: "note" }, state.live ? why : `Checking whether the live watcher is here… ${why}`), h("div", { class: "form-row" }, dim, text, button), suggest, out);
   return box;
 }
 
@@ -719,7 +744,7 @@ function viewReceipt(el) {
   el.append(
     h("p", { class: "sum" }, "The document a reviewer who was not there approves from. Signed with Ed25519. Its two verdicts are at the top of this page."),
     h("h3", {}, "Each success criterion"),
-    table(["Criterion", "Check", "Outcome"], (r.criteria ?? []).map((c) => [c.text, c.check ? `${c.check}${c.strength ? ` (${c.strength})` : ""}` : "no check", h("span", { class: `state ${c.status === "verified" ? "ok" : "bad"}` }, icon(c.status === "verified" ? "check" : "partly", 14), c.status === "verified" ? "verified" : "not verified")])),
+    table(["Criterion", "Check", "Outcome"], (r.criteria ?? []).map((c) => [c.text, c.check ? `${c.check}${c.strength ? ` (${c.strength})` : ""}` : "no check", h("span", { class: `state ${c.status === "verified" ? "ok" : "bad"}` }, icon(c.status === "verified" ? "check" : "partly", 14), c.status === "verified" ? "verified" : c.check ? "not verified" : "not claimed, no check")])),
   );
   if ((r.corrections ?? []).length) el.append(h("h3", {}, "Corrections"), h("ul", { class: "plain" }, r.corrections.map((c) => h("li", {}, c.detail))));
   const coverage = r.coverage ?? [];

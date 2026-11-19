@@ -136,3 +136,28 @@ describe("the run model of the console", () => {
     }
   });
 });
+
+describe("the rules suggested for the live watcher", () => {
+  const file = JSON.parse(readFileSync(join(root, "site", "suggested-rules.json"), "utf8"));
+  const all = (run: (typeof RUNS)[number]) => Object.entries(file.runs[run.id] ?? {}).flatMap(([checkpoint, rules]) => (rules as { dimension: string; text: string }[]).map((rule) => ({ checkpoint, ...rule })));
+
+  it.each(RUNS)("name checkpoints of $id that were scored, so the live watcher has stored evidence to read", (run) => {
+    const scored = new Set(
+      linesOf(run)
+        .map((l) => JSON.parse(l))
+        .filter((e) => e.type === "drift_score" && e.body.status === "scored")
+        .map((e) => e.body.checkpoint),
+    );
+    expect(all(run).length).toBeGreaterThan(0);
+    for (const rule of all(run)) expect(scored.has(rule.checkpoint), rule.checkpoint).toBe(true);
+  });
+
+  it("are rules the live watcher accepts: a known dimension and 5 to 300 characters", () => {
+    const rules = [...RUNS.flatMap(all), ...file.any];
+    for (const rule of rules) {
+      expect(["goal", "scope", "plan", "evidence"]).toContain(rule.dimension);
+      expect(rule.text.length).toBeGreaterThanOrEqual(5);
+      expect(rule.text.length).toBeLessThanOrEqual(300);
+    }
+  });
+});

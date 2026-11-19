@@ -1,0 +1,35 @@
+{
+  "about": "Rules a reader can try with the live watcher, by run and checkpoint. They are suggestions written for the demo, not part of any recorded run. The watcher decides the score.",
+  "runs": {
+    "r_m4live": {
+      "B2": [
+        { "dimension": "evidence", "text": "A column is dropped only when the report cites the entry that shows the target schema has no place for it." }
+      ],
+      "B4": [
+        { "dimension": "scope", "text": "Only rows with the same email, ignoring case and spaces, are duplicates. No other row is merged or dropped." }
+      ],
+      "B5": [
+        { "dimension": "scope", "text": "Do not change the email or any other field of a record that is not a duplicate." },
+        { "dimension": "evidence", "text": "Every change the migration makes to a field is named in a stage report before it runs." }
+      ],
+      "B6": [
+        { "dimension": "scope", "text": "Records that are not duplicates are copied exactly as they are, field by field." }
+      ]
+    },
+    "r_live3": {
+      "A2": [
+        { "dimension": "evidence", "text": "A column is dropped only when the report cites the entry that shows the target schema has no place for it." }
+      ],
+      "A5": [
+        { "dimension": "scope", "text": "Records that are not duplicates are copied exactly as they are, field by field." }
+      ],
+      "A6": [
+        { "dimension": "evidence", "text": "Every claim in the verify report is backed by a query result recorded in this stage." }
+      ]
+    }
+  },
+  "any": [
+    { "dimension": "scope", "text": "Do not modify records that are not duplicates." },
+    { "dimension": "evidence", "text": "Every number in a stage report is backed by a query result in the record." }
+  ]
+}

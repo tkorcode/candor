@@ -1,0 +1,8 @@
+{
+  "zod": "Schemas for the charter, ledger entries and hook input",
+  "@biomejs/biome": "Lint",
+  "@types/node": "Type declarations for Node",
+  "typescript": "Type checking and the build",
+  "vitest": "Unit and integration tests",
+  "yaml": "Reads and writes the charter file"
+}

@@ -24,6 +24,7 @@ const state = {
   guide: [],
   live: null,
   suggestions: { runs: {}, any: [] },
+  folds: new Map(),
 };
 const $ = (id) => document.getElementById(id);
 const fetchText = async (path) => {
@@ -397,6 +398,20 @@ function drawView() {
   const views = { checkpoint: viewCheckpoint, rules: viewRules, ledger: viewLedger, receipt: viewReceipt };
   const el = clear($(`view-${state.tab}`));
   views[state.tab](el);
+  keepFolds(el);
+}
+
+/**
+ * Every redraw builds the view again, so a section the reader opened or closed would go back to its default.
+ * This remembers each section by view, checkpoint and title, and puts it back as the reader left it.
+ */
+function keepFolds(el) {
+  for (const d of el.querySelectorAll("details")) {
+    const title = d.querySelector(":scope > summary .dim-name")?.textContent ?? d.querySelector(":scope > summary")?.textContent ?? "";
+    const key = `${state.run.id}|${state.tab}|${state.tab === "checkpoint" ? state.selected : ""}|${title}`;
+    if (state.folds.has(key)) d.open = state.folds.get(key);
+    d.addEventListener("toggle", () => state.folds.set(key, d.open));
+  }
 }
 
 const goToEntries = (seqs) => {

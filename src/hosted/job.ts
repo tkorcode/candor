@@ -68,6 +68,12 @@ export interface JobState {
   restartOf?: Record<string, string>;
   /** Notes from Candor to the worker, sent with the next tool results so the conversation stays valid. */
   notes?: string[];
+  /**
+   * The system prompt of the worker, fixed when the job starts. A model signs its reasoning against the conversation,
+   * so a system prompt that changed after a rule or a restart would void every signed block before it. New rules
+   * reach the worker as notes instead.
+   */
+  system?: string;
 }
 
 export interface JobDeps {
@@ -122,6 +128,7 @@ export function createJob(id: string, input: CharterInput, options: { mode: "scr
     pending: null,
     inventory: [],
     seededFault: options.seededFault ?? false,
+    system: workerSystem(charter, options.seededFault ?? false),
     ledger: ledger.state,
     receipt: null,
   };
@@ -284,7 +291,7 @@ export async function step(job: JobState, deps: JobDeps): Promise<void> {
   }
   let turn: Turn & { assistant?: unknown };
   try {
-    turn = await deps.worker({ system: workerSystem(charter, job.seededFault), messages: job.messages, charter, step: job.step, seededFault: job.seededFault });
+    turn = await deps.worker({ system: job.system ?? workerSystem(charter, job.seededFault), messages: job.messages, charter, step: job.step, seededFault: job.seededFault });
   } catch (error) {
     job.status = "failed";
     job.statusReason = (error as Error).message;
@@ -425,6 +432,7 @@ export async function addRule(job: JobState, deps: JobDeps, rule: { dimension: "
   const next: Charter = { ...old, version: old.version + 1, drift_rules: [...old.drift_rules, added] };
   job.charters.push(next);
   job.files[".candor/charter.md"] = charterMarkdown(next);
+  job.notes = [...(job.notes ?? []), `The reader added a rule to the charter. Your work is now scored against it: (${added.dimension}) ${added.text}`];
   ledger.append({ type: "rule_change", actor: "operator", branch: job.branch, body: { author: "operator", from_version: old.version, version: next.version, rule: added, reason: "Added from the workspace while the job ran.", charter_hash: charterHash(next), previous_hash: charterHash(old) } });
   for (const record of lineage(job, job.branch)) {
     const first = ledger.entries().find((e) => e.type === "drift_score" && e.body.checkpoint === record.id && e.body.status === "scored");

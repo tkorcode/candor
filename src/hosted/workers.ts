@@ -68,19 +68,44 @@ export function workerSystem(charter: Charter, seededFault: boolean): string {
   ].join("\n");
 }
 
+/** The conversation without the model's blocks of reasoning, for when their signatures no longer match it. */
+export function withoutThinking(messages: Message[]): Message[] {
+  return messages.map((m) => {
+    const msg = m as { role: string; content: unknown };
+    if (msg.role !== "assistant" || !Array.isArray(msg.content)) return m;
+    const kept = (msg.content as { type: string }[]).filter((b) => b.type !== "thinking" && b.type !== "redacted_thinking");
+    return { ...m, content: kept.length ? kept : [{ type: "text", text: "(reasoning removed)" }] } as Message;
+  });
+}
+
 /** The model worker: a Claude model over the Messages API, with a cap on each call. */
 export function modelWorker(apiKey: string, model = "claude-haiku-5-5", fetchImpl: typeof fetch = fetch): Worker {
   return async (ctx) => {
     // An overloaded or rate-limited API is tried again twice, after a short wait, before the job fails.
+    let messages = ctx.messages;
     let res: Response | null = null;
-    for (const wait of [0, 3000, 9000]) {
+    const waits = [0, 3000, 9000];
+    let now = false;
+    for (let i = 0; i < waits.length; i += 1) {
+      const wait = now ? 0 : (waits[i] ?? 0);
+      now = false;
       if (wait) await new Promise((r) => setTimeout(r, wait));
       res = await fetchImpl("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-        body: JSON.stringify({ model, max_tokens: 8000, system: ctx.system, tools: TOOLS, messages: ctx.messages }),
+        body: JSON.stringify({ model, max_tokens: 8000, system: ctx.system, tools: TOOLS, messages }),
         signal: AbortSignal.timeout(120_000),
       });
+      // A signed block of reasoning that no longer matches the conversation is dropped once, and the call is sent again.
+      if (res.status === 400 && messages === ctx.messages) {
+        const text = await res.clone().text();
+        if (/signature|thinking/i.test(text)) {
+          messages = withoutThinking(ctx.messages);
+          now = true;
+          i -= 1;
+          continue;
+        }
+      }
       if (![429, 500, 502, 503, 529].includes(res.status)) break;
     }
     if (!res) throw new Error("The worker model was not called.");

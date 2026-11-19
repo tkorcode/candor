@@ -24,6 +24,8 @@ const state = {
   guide: [],
   live: null,
   suggestions: { runs: {}, any: [] },
+  folds: new Map(),
+  answers: new Map(),
 };
 const $ = (id) => document.getElementById(id);
 const fetchText = async (path) => {
@@ -86,8 +88,17 @@ async function start() {
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") closeMenu();
   });
+  // The menu is placed on the screen, so it closes when the page moves under it.
+  window.addEventListener(
+    "scroll",
+    () => {
+      if (Math.abs(window.scrollY - menuScrollY) > 40) closeMenu();
+    },
+    { passive: true },
+  );
   let resize = 0;
   window.addEventListener("resize", () => {
+    closeMenu();
     cancelAnimationFrame(resize);
     resize = requestAnimationFrame(() => state.model && drawMap());
   });
@@ -248,7 +259,10 @@ function drawMap() {
   box.append(h("span", {}, h("strong", {}, suggestion.kind === "suggested" ? `Suggested restart point: ${suggestion.checkpoint.id}. ` : "Restart point. "), suggestion.text));
   if (suggestion.kind === "suggested") box.append(h("button", { class: "link", type: "button", onclick: () => select(suggestion.checkpoint.id) }, `Open ${suggestion.checkpoint.id}`));
   drawLevels();
+  // Redrawing the map replaces its nodes. Keep keyboard focus on the checkpoint that had it.
+  const focused = document.activeElement?.closest?.("[data-cp]")?.dataset.cp;
   renderMap($("map"), m, { thresholds: state.thresholds, selected: state.selected, suggestion, onSelect: select, onMenu: openMenu, stageTitle, noteSent });
+  if (focused) document.querySelector(`[data-cp="${focused}"]`)?.focus({ preventScroll: true });
   const legend = clear($("legend"));
   const sw = (cls, color) => h("span", { class: `swatch ${cls}`, style: color ? `background:${color}` : "" });
   const glyph = (d, color) => s("svg", { width: 14, height: 14, viewBox: "0 0 24 24", fill: "none", stroke: color, "stroke-width": 2.4, "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true" }, d.map((p) => (p.startsWith("rect") ? s("rect", { x: 5, y: 11, width: 14, height: 10, rx: 2 }) : s("path", { d: p }))));
@@ -296,6 +310,8 @@ function select(id) {
 
 // ---- the actions menu of a checkpoint -----------------------------------------------------------------
 
+let menuScrollY = 0;
+
 function closeMenu() {
   document.getElementById("cp-menu")?.remove();
 }
@@ -322,7 +338,8 @@ function openMenu(id, x, y) {
   const m = state.model;
   const cp = m.byId.get(id);
   if (!cp) return;
-  select(id);
+  // Redraw only when the menu is for another checkpoint, so sections the reader opened or closed stay as they are.
+  if (state.selected !== id || state.tab !== "checkpoint") select(id);
   const command = `candor restart ${cp.id} --reason "<what went wrong>"`;
   const item = (label, action, enabled = true) =>
     h("button", { type: "button", role: "menuitem", disabled: enabled ? null : true, onclick: () => {
@@ -333,10 +350,11 @@ function openMenu(id, x, y) {
     h("div", { class: "menu-head" }, `${cp.id} · ${stageTitle(cp)}`),
     item("Why this score", () => goToSection("why"), !!cp.latest),
     item("Ask the watcher again with a rule", () => goToSection("ask"), !!cp.first),
-    item(cp.safety === "safe_to_restart" ? "Copy the restart command" : "Restart is not possible here", () => navigator.clipboard?.writeText(command).then(() => toast("Restart command copied. Run it on the machine running the job."), () => toast(command)), cp.safety === "safe_to_restart"),
+    item(cp.safety === "safe_to_restart" ? "Copy the restart command" : "Restart is not possible here", () => (navigator.clipboard ? navigator.clipboard.writeText(command) : Promise.reject(new Error("no clipboard"))).then(() => toast("Restart command copied. Run it on the machine running the job."), () => toast(command)), cp.safety === "safe_to_restart"),
     item("Show its entries in the ledger", () => goToEntries([cp.seq, ...m.windowOf(cp).map((e) => e.seq)])),
   );
   menu.style.cssText = `left:${x}px;top:${y}px`;
+  menuScrollY = window.scrollY;
   document.body.append(menu);
   const r = menu.getBoundingClientRect();
   if (r.right > innerWidth - 8) menu.style.left = `${Math.max(8, innerWidth - r.width - 8)}px`;
@@ -394,8 +412,26 @@ function showTab(tab) {
 
 function drawView() {
   const views = { checkpoint: viewCheckpoint, rules: viewRules, ledger: viewLedger, receipt: viewReceipt };
-  const el = clear($(`view-${state.tab}`));
+  const el = $(`view-${state.tab}`);
+  // Read the sections as they are now, before the redraw replaces them, so a click just before it is not lost.
+  for (const d of el.querySelectorAll("details[data-fold]")) state.folds.set(d.dataset.fold, d.open);
+  clear(el);
   views[state.tab](el);
+  keepFolds(el);
+}
+
+/**
+ * Every redraw builds the view again, so a section the reader opened or closed would go back to its default.
+ * This remembers each section by view, checkpoint and title, and puts it back as the reader left it.
+ */
+function keepFolds(el) {
+  for (const d of el.querySelectorAll("details")) {
+    const title = d.querySelector(":scope > summary .dim-name")?.textContent ?? d.querySelector(":scope > summary")?.textContent ?? "";
+    const key = `${state.run.id}|${state.tab}|${state.tab === "checkpoint" ? state.selected : ""}|${title}`;
+    d.dataset.fold = key;
+    if (state.folds.has(key)) d.open = state.folds.get(key);
+    d.addEventListener("toggle", () => state.folds.set(key, d.open));
+  }
 }
 
 const goToEntries = (seqs) => {
@@ -567,7 +603,20 @@ function evidenceBox(cp) {
   return box;
 }
 
+/** A live answer of the watcher, labelled live, beside the score recorded at the time. */
+function answerView({ rule, body }) {
+  const lvl = levelFor(body.overall, state.thresholds);
+  return [
+    h("p", {}, h("span", { class: "chip accent" }, "live"), " ", chipFor(lvl, body.overall), ` with your rule, against ${fmt(body.original?.overall)} recorded at the time.${body.cached ? " The same question was asked before." : ""}`),
+    h("p", { class: "note" }, `Your rule, ${rule.dimension}: ${rule.text}`),
+    h("p", { class: "note mono" }, DIMENSIONS.map((d) => `${d} ${fmt(body.dimensions?.[d] ?? 0)}`).join(" · ")),
+    h("div", {}, (body.findings ?? []).map((f) => h("p", {}, h("strong", {}, `${f.rule}: `), f.summary))),
+    h("p", { class: "note" }, `${body.note} ${body.judge_model}, ${money(body.usage?.cost_usd)}.`),
+  ];
+}
+
 function liveWatcher(cp) {
+  const answerKey = `${state.run.id}|${cp.id}`;
   const box = h("section", { class: "box wide", id: "ask" }, h("h3", {}, "Ask the watcher again, with your own rule"));
   if (!cp.first) {
     box.append(h("p", { class: "note" }, "This checkpoint has no stored evidence, so it cannot be scored again."));
@@ -587,6 +636,12 @@ function liveWatcher(cp) {
         if (!button.disabled) button.focus();
       } }, h("span", { class: "try-dim" }, r.dimension), r.text)))
     : null;
+  const kept = state.answers.get(answerKey);
+  if (kept) {
+    dim.value = kept.rule.dimension;
+    text.value = kept.rule.text;
+    out.append(...answerView(kept));
+  }
   button.addEventListener("click", async () => {
     clear(out).append(h("p", { class: "note" }, "Asking the watcher…"));
     button.disabled = true;
@@ -595,13 +650,10 @@ function liveWatcher(cp) {
       const body = await res.json().catch(() => ({}));
       clear(out);
       if (!res.ok) return out.append(h("p", {}, res.status === 404 && !body.error ? "The live watcher runs only on the hosted console. This copy of the site has no live watcher." : (body.error ?? `The live watcher answered with status ${res.status}.`)));
-      const lvl = levelFor(body.overall, state.thresholds);
-      out.append(
-        h("p", {}, h("span", { class: "chip accent" }, "live"), " ", chipFor(lvl, body.overall), ` with your rule, against ${fmt(body.original?.overall)} recorded at the time.${body.cached ? " The same question was asked before." : ""}`),
-        h("p", { class: "note mono" }, DIMENSIONS.map((d) => `${d} ${fmt(body.dimensions?.[d] ?? 0)}`).join(" · ")),
-        h("div", {}, (body.findings ?? []).map((f) => h("p", {}, h("strong", {}, `${f.rule}: `), f.summary))),
-        h("p", { class: "note" }, `${body.note} ${body.judge_model}, ${money(body.usage?.cost_usd)}.`),
-      );
+      // Keep the answer, so a redraw of the view shows it again instead of losing it.
+      state.answers.set(answerKey, { rule: { dimension: dim.value, text: text.value || text.placeholder }, body });
+      if (out.isConnected) out.append(...answerView(state.answers.get(answerKey)));
+      else if (state.tab === "checkpoint" && state.selected === cp.id) drawView();
     } catch (error) {
       clear(out).append(h("p", {}, `The request did not reach the live watcher: ${error instanceof Error ? error.message : String(error)}. The recorded scores are unchanged.`));
     } finally {

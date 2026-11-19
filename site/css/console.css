@@ -216,3 +216,7 @@ tr.cited td { background: var(--warn-bg); }
 .levels .changed { font-weight: 600; }
 .box .explain { color: var(--muted); font-size: 0.88rem; margin: 10px 0 0; }
 input[type="range"] { accent-color: var(--accent); }
+.tries { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; margin: 4px 0 6px; }
+.try { display: inline-flex; gap: 6px; align-items: baseline; text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; color: var(--fg); font-size: 0.86rem; max-width: 100%; }
+.try:hover { border-color: var(--fg); }
+.try-dim { color: var(--muted); font-size: 0.78rem; }

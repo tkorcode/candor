@@ -23,6 +23,7 @@ const state = {
   open: new Set(),
   guide: [],
   live: null,
+  suggestions: { runs: {}, any: [] },
 };
 const $ = (id) => document.getElementById(id);
 const fetchText = async (path) => {
@@ -90,6 +91,10 @@ async function start() {
     cancelAnimationFrame(resize);
     resize = requestAnimationFrame(() => state.model && drawMap());
   });
+  // Rules a reader can try with the live watcher. Written for the demo, never part of a recorded run.
+  state.suggestions = await fetchText("suggested-rules.json")
+    .then((t) => JSON.parse(t))
+    .catch(() => ({ runs: {}, any: [] }));
   // The live watcher exists only where the endpoint is deployed. It answers a GET with 405, a static copy with 404.
   fetch("api/rescore", { method: "GET" })
     .then((r) => r.status === 405)
@@ -563,6 +568,15 @@ function liveWatcher(cp) {
   const text = h("input", { type: "text", maxlength: 300, placeholder: "Do not modify records that are not duplicates.", "aria-label": "Your rule" });
   const out = h("div", { class: "result", role: "status" });
   const button = h("button", { class: "btn primary", type: "button" }, "Score again, live");
+  const own = state.suggestions.runs?.[state.run.id]?.[cp.id] ?? [];
+  const tries = [...own, ...(state.suggestions.any ?? []).filter((a) => !own.some((o) => o.text === a.text))].slice(0, 3);
+  const suggest = tries.length
+    ? h("div", { class: "tries" }, h("span", { class: "note" }, "Try a rule"), tries.map((r) => h("button", { class: "try", type: "button", title: `${r.dimension}: ${r.text}`, onclick: () => {
+        dim.value = r.dimension;
+        text.value = r.text;
+        if (!button.disabled) button.focus();
+      } }, h("span", { class: "try-dim" }, r.dimension), r.text)))
+    : null;
   button.addEventListener("click", async () => {
     clear(out).append(h("p", { class: "note" }, "Asking the watcher…"));
     button.disabled = true;
@@ -592,8 +606,9 @@ function liveWatcher(cp) {
       h("p", {}, h("strong", {}, "Runs only on the hosted console. "), `This copy of the site has no live watcher. There, ${why[0].toLowerCase()}${why.slice(1)}`),
       h("p", { class: "note" }, "On a machine running Candor, candor rule adds a rule to a real run and scores its checkpoints again."),
       h("div", { class: "form-row" }, dim, text, button),
+      suggest,
     );
-  } else box.append(h("p", { class: "note" }, state.live ? why : `Checking whether the live watcher is here… ${why}`), h("div", { class: "form-row" }, dim, text, button), out);
+  } else box.append(h("p", { class: "note" }, state.live ? why : `Checking whether the live watcher is here… ${why}`), h("div", { class: "form-row" }, dim, text, button), suggest, out);
   return box;
 }
 

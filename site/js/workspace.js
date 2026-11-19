@@ -298,10 +298,14 @@ function drawNeeds() {
   if (j.status === "held") put(el, h("div", { class: "ws-needs" }, h("h3", {}, "Needs you: a step is waiting"), h("div", {}, `The worker wants to run ${j.pending?.tool ?? ""} ${j.pending?.path ?? ""}. The charter says this waits for your approval.`), h("div", { class: "acts" }, h("button", { class: "btn primary", type: "button", disabled: state.busy ? true : null, onclick: () => act({ kind: "approve" }) }, "Approve"), h("button", { class: "btn", type: "button", disabled: state.busy ? true : null, onclick: () => act({ kind: "deny" }) }, "Deny"))));
   if (j.status === "paused") put(el, h("div", { class: "ws-needs" }, h("h3", {}, "Needs you: the watcher paused the job"), h("div", {}, j.statusReason), h("div", { class: "acts" }, h("button", { class: "btn primary", type: "button", onclick: () => act({ kind: "continue" }) }, "Continue"), h("button", { class: "btn", type: "button", onclick: () => select(lastScored()?.id) }, "See why, add a rule or restart"))));
 }
+/** The checkpoint to show first: the first that warned or paused on the active branch, else the last scored. */
 const lastScored = () => {
   const m = model();
-  return [...m.checkpoints].reverse().find((c) => c.latest) ?? m.checkpoints.at(-1);
+  const t = charterNow().thresholds;
+  const line = m.lineageOf(m.activeBranch);
+  return line.find((c) => (latestOverall(c) ?? 0) >= t.warn) ?? [...line].reverse().find((c) => c.latest) ?? m.checkpoints.at(-1);
 };
+const TRIGGER_TITLES = { before_irreversible: "Before the held step", final: "End of the job", restart: "Restart point" };
 
 function drawTabs() {
   const el = clear($("tabs"));
@@ -413,14 +417,14 @@ function paneRun(el) {
   const mapBox = h("div", { id: "ws-map" });
   if (j.receipt) put(el, verdictsBox(j));
   put(el, h("h3", { style: "margin:0 0 6px" }, "Run map"), h("div", { class: "ws-mapwrap" }, mapBox), h("p", { class: "note" }, "Circles can be restarted from, squares are record only. Click a checkpoint to see why it scored what it did."));
-  if (m.checkpoints.length) requestAnimationFrame(() => renderMap(mapBox, m, { thresholds: t, selected: state.selected, suggestion: null, onSelect: select, onMenu: (id) => select(id), stageTitle: (cp) => m.stageOf(cp.stage)?.title ?? { before_irreversible: "Before the held step", final: "End of the job", restart: "Restart point" }[cp.trigger] ?? cp.trigger, noteSent: (cp) => j.entries.some((e) => e.type === "check_result" && e.body.check === "watcher_note" && e.body.checkpoint === cp.id) }));
+  if (m.checkpoints.length) requestAnimationFrame(() => renderMap(mapBox, m, { thresholds: t, selected: state.selected, suggestion: null, onSelect: select, onMenu: (id) => select(id), stageTitle: (cp) => (cp.trigger === "restart" ? TRIGGER_TITLES.restart : (m.stageOf(cp.stage)?.title ?? TRIGGER_TITLES[cp.trigger] ?? cp.trigger)), noteSent: (cp) => j.entries.some((e) => e.type === "check_result" && e.body.check === "watcher_note" && e.body.checkpoint === cp.id) }));
   const cp = m.byId.get(state.selected);
   if (!cp) return;
   const latest = latestOverall(cp);
   const lvl = levelFor(latest, t);
   const charter = m.charterByVersion.get(cp.latest?.body.charter_version ?? 1) ?? m.latestCharter;
   const report = m.reportFor(cp);
-  put(el, h("h3", { style: "margin:16px 0 6px" }, `${cp.id} · ${m.stageOf(cp.stage)?.title ?? cp.trigger.replaceAll("_", " ")} `, h("span", { class: `chip ${lvl === "not scored" ? "none" : lvl}` }, latest === null ? "not scored" : `${lvl === "ok" ? "on course" : lvl} ${fmt(latest)}`)));
+  put(el, h("h3", { style: "margin:16px 0 6px" }, `${cp.id} · ${cp.trigger === "restart" ? TRIGGER_TITLES.restart : (m.stageOf(cp.stage)?.title ?? TRIGGER_TITLES[cp.trigger] ?? cp.trigger)} `, h("span", { class: `chip ${lvl === "not scored" ? "none" : lvl}` }, latest === null ? "not scored" : `${lvl === "ok" ? "on course" : lvl} ${fmt(latest)}`)));
   if (report) put(el, h("div", { class: "ws-sec" }, h("div", { class: "note" }, "The worker says"), h("div", {}, report.body.summary), ...(report.body.deviations ?? []).map((d) => h("div", { class: "note" }, `Deviation: ${d}`))));
   if (cp.latest) {
     const b = cp.latest.body;

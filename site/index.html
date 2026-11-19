@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<title>Candor Console</title>
+<meta name="description" content="A recorded long-running Claude Code job under Candor: its checkpoints, drift against the goal, restarts, ledger and signed trust receipt, all checked in your browser.">
+<link rel="stylesheet" href="css/console.css">
+<script type="module" src="js/app.js"></script>
+</head>
+<body>
+<header class="top">
+  <div class="wrap top-row">
+    <div class="brand">
+      <span class="mark" aria-hidden="true"></span>
+      <div>
+        <div class="name">Candor</div>
+        <div class="tag">Trust in long-running AI jobs</div>
+      </div>
+    </div>
+    <label class="picker">
+      <span>Run</span>
+      <select id="run-select" aria-label="Recorded run"></select>
+    </label>
+  </div>
+</header>
+
+<main class="wrap" id="main">
+  <section class="intro" aria-label="What this page shows">
+    <p id="run-line" class="run-line">Loading the run files…</p>
+    <p class="lede">A Claude Code job ran under Candor. A separate model, the watcher, scored every checkpoint against the goal of the job, a person could add rules and restart from a checkpoint, and the run ended with a signed receipt. Everything here is read from the files of the run, and the integrity line is computed in your browser.</p>
+    <p id="integrity" class="integrity pending" role="status">Checking the record…</p>
+  </section>
+
+  <section class="verdicts" id="verdicts" aria-label="The two verdicts of the receipt"></section>
+
+  <section class="panel" aria-labelledby="map-title">
+    <div class="panel-head">
+      <h2 id="map-title">Run map</h2>
+      <p class="hint">Each node is a checkpoint. The bar above it is the drift the watcher scored there. Select a checkpoint to see what happened.</p>
+    </div>
+    <div id="suggestion" class="suggestion" role="status"></div>
+    <div class="map-scroll"><div id="map"></div></div>
+    <div class="map-foot">
+      <ul class="legend" id="legend" aria-label="Legend"></ul>
+      <details class="whatif">
+        <summary>What if the thresholds were different?</summary>
+        <div class="whatif-body">
+          <label>Warn at <input id="warn" type="range" min="0.05" max="0.95" step="0.05"> <output id="warn-out"></output></label>
+          <label>Pause at <input id="pause" type="range" min="0.1" max="1" step="0.05"> <output id="pause-out"></output></label>
+          <button id="reset-thresholds" type="button" class="link">Back to the charter values</button>
+          <p class="hint">This only changes what you see. The run used the thresholds of its charter.</p>
+        </div>
+      </details>
+    </div>
+  </section>
+
+  <section class="panel" aria-label="Details of the selected checkpoint">
+    <div class="tabs" role="tablist" id="tabs">
+      <button role="tab" id="tab-checkpoint" aria-controls="view-checkpoint" aria-selected="true">Checkpoint</button>
+      <button role="tab" id="tab-drift" aria-controls="view-drift" aria-selected="false">Drift calculator</button>
+      <button role="tab" id="tab-rules" aria-controls="view-rules" aria-selected="false">Rules</button>
+      <button role="tab" id="tab-ledger" aria-controls="view-ledger" aria-selected="false">Ledger</button>
+      <button role="tab" id="tab-receipt" aria-controls="view-receipt" aria-selected="false">Receipt and verify</button>
+    </div>
+    <div role="tabpanel" id="view-checkpoint" aria-labelledby="tab-checkpoint" class="view"></div>
+    <div role="tabpanel" id="view-drift" aria-labelledby="tab-drift" class="view" hidden></div>
+    <div role="tabpanel" id="view-rules" aria-labelledby="tab-rules" class="view" hidden></div>
+    <div role="tabpanel" id="view-ledger" aria-labelledby="tab-ledger" class="view" hidden></div>
+    <div role="tabpanel" id="view-receipt" aria-labelledby="tab-receipt" class="view" hidden></div>
+  </section>
+</main>
+
+<footer class="wrap foot">
+  <p>Candor gives evidence, not proof. The record is tamper-evident on one machine, not tamper-proof. Each run is labelled live or scripted. Source: <a href="https://github.com/tkorcode/candor">github.com/tkorcode/candor</a>.</p>
+</footer>
+</body>
+</html>

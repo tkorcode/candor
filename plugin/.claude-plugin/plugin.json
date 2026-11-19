@@ -1,0 +1,5 @@
+{
+  "name": "candor",
+  "version": "0.0.1",
+  "description": "Shows a Candor run beside the session: where it is, whether it is on course, and what was recorded."
+}

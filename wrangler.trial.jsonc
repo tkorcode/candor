@@ -9,14 +9,27 @@
   "compatibility_flags": ["nodejs_compat"],
   // The Worker runs first, so the gate also covers the static pages.
   "assets": { "directory": "./site", "binding": "ASSETS", "run_worker_first": true },
-  "durable_objects": { "bindings": [{ "name": "CANDOR_JOBS", "class_name": "CandorJob" }] },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["CandorJob"] }],
+  "durable_objects": {
+    "bindings": [
+      { "name": "CANDOR_JOBS", "class_name": "CandorJob" },
+      // One container per Claude Code job (src/web/container.ts, container/Dockerfile).
+      { "name": "CANDOR_CONTAINER", "class_name": "CandorContainer" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["CandorJob"] },
+    { "tag": "v2", "new_sqlite_classes": ["CandorContainer"] }
+  ],
+  // The image is built from the repository root after `npm run build`, so it holds the built Candor.
+  "containers": [{ "class_name": "CandorContainer", "image": "./container/Dockerfile", "image_build_context": ".", "max_instances": 5, "instance_type": "standard-1" }],
   "kv_namespaces": [{ "binding": "CANDOR_KV", "id": "TRIAL_KV_ID" }],
   "observability": { "enabled": true },
   "vars": {
     "CANDOR_TRIAL": "1",
     "CANDOR_WATCHER_MODEL": "claude-sonnet-5-5",
     "CANDOR_WORKER_MODEL": "claude-haiku-5-5",
+    // The worker of a Claude Code job. Its watcher, set in container/Dockerfile, is Opus 5.5, as in the evaluation.
+    "CANDOR_CLAUDE_CODE_MODEL": "claude-sonnet-5-5",
     "CANDOR_JOBS_PER_DAY": "100",
     "CANDOR_DAILY_USD": "50",
     "CANDOR_CALLS_PER_HOUR": "120",

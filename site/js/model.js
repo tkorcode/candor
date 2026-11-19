@@ -197,7 +197,7 @@ export function describe(entry) {
     case "charter_review":
       return `The charter review was recorded, with ${Array.isArray(b.items) ? b.items.length : 0} items and how each was resolved.`;
     case "run_start":
-      return "The run started. The check scripts and the workspace were captured before the worker began.";
+      return b.hosted ? `The job started in the workspace, ${b.mode === "live" ? "with a Claude model and file tools" : "scripted"}. Nothing in it runs the code of the project.` : "The run started. The check scripts and the workspace were captured before the worker began.";
     case "session_start":
       return `A worker session started${b.model ? ` on ${s(b.model)}` : ""}${b.claude_code_version ? `, Claude Code ${s(b.claude_code_version)}` : ""}.`;
     case "tool_intent":

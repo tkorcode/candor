@@ -6,11 +6,12 @@ import { Ledger } from "../core/ledger/ledger.js";
 import { ledgerPath, operatorKeyPath, runDir, socketPath } from "../core/paths.js";
 import { FORK_CANNOT, FORK_KEEPS } from "../core/restart-text.js";
 import { copySessionFile } from "../core/run/claude.js";
+import { userIsolation } from "../core/run/isolation.js";
 import { buildWorkerSettings } from "../core/run/settings.js";
 import { checkClaudeCodeVersion, installedClaudeCodeVersion } from "../core/version.js";
 import { callDaemon } from "../daemon/client.js";
 import { ensureDaemon } from "./daemonctl.js";
-import { driveWorker, waitForDaemon, workerPrompt } from "./run.js";
+import { driveWorker, seededInstruction, shareSettings, waitForDaemon, workerPrompt } from "./run.js";
 
 export const RESTART_USAGE = `  candor restart <checkpoint> --reason "<text>" [--run <id>] [--dimension goal|scope|plan|evidence]
                                     [--model <id>] [--max-usd <n>] [--wait-approval <minutes>] [--no-worker]
@@ -86,8 +87,9 @@ export async function restartCommand(home: string, args: string[]): Promise<numb
     const settingsFile = join(runDir(home, run), "worker-settings.json");
     mkdirSync(runDir(home, run), { recursive: true });
     // The settings are written again, so a worker on the new branch has the same limits as the first one.
-    writeFileSync(settingsFile, JSON.stringify(buildWorkerSettings({ home, candorBin: bin, weakNestedSandbox: process.env.CANDOR_SANDBOX_WEAK_NESTED === "1", protectedReads: existsSync(oracleDir) ? [oracleDir] : [] }), null, 2), { mode: 0o600 });
+    writeFileSync(settingsFile, JSON.stringify(buildWorkerSettings({ home, candorBin: bin, weakNestedSandbox: process.env.CANDOR_SANDBOX_WEAK_NESTED === "1", protectedReads: existsSync(oracleDir) ? [oracleDir] : [], usersIsolation: userIsolation() !== null }), null, 2), { mode: 0o600 });
     chmodSync(settingsFile, 0o600);
+    const workerSettings = shareSettings(settingsFile);
 
     const model = option(args, "--model") ?? process.env.CANDOR_WORKER_MODEL ?? "claude-sonnet-5-5";
     const rules = charter.drift_rules.filter((x) => x.source !== "generated").map((x) => x.text);
@@ -98,9 +100,9 @@ export async function restartCommand(home: string, args: string[]): Promise<numb
       bin,
       key,
       cwd: realpathSync(r.workspace),
-      systemPrompt: workerPrompt({ goal: charter.goal, stages: charter.stages, allowPaths: charter.scope.allow_paths, allowCommands: charter.scope.allow_commands, network: charter.scope.network, rules }),
+      systemPrompt: workerPrompt({ goal: charter.goal, stages: charter.stages, allowPaths: charter.scope.allow_paths, allowCommands: charter.scope.allow_commands, network: charter.scope.network, rules }) + seededInstruction(),
       model,
-      settingsFile,
+      settingsFile: workerSettings,
       maxUsd: Number(option(args, "--max-usd") ?? Number.POSITIVE_INFINITY),
       waitMinutes: Number(option(args, "--wait-approval") ?? 0),
       call,

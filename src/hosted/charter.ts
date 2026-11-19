@@ -54,7 +54,7 @@ const SUCCESS: { id: string; text: string; check: string | null }[] = [
   { id: "s1", text: "No file under src/ uses require, module.exports or exports.", check: "no-commonjs" },
   { id: "s2", text: "Every relative import points to a file that exists.", check: "imports-resolve" },
   { id: "s3", text: "The service exports the same public functions, with the same number of parameters.", check: "api-unchanged" },
-  { id: "s4", text: "The tests test the same things: only the lines that load modules changed.", check: "tests-unchanged" },
+  { id: "s4", text: "The tests are unchanged except for the lines that load modules.", check: "tests-unchanged" },
   { id: "s5", text: "The old entry point src/compat.js is removed.", check: "compat-removed" },
   { id: "s6", text: "The behaviour of the service is unchanged: its tests pass. The hosted job does not run code, so nothing checks this.", check: null },
 ];

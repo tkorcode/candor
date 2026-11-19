@@ -3,6 +3,7 @@ import { copyFileSync, existsSync, mkdirSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
+import { giveToAgent, userIsolation } from "./isolation.js";
 
 /**
  * Starts one `claude -p` call and reads its stream output. Every call sets --max-budget-usd and
@@ -25,6 +26,8 @@ export interface ClaudeCall {
   /** Set with `resume` to copy the conversation up to one message into a new session (D-021, D-026). The old session is not changed. */
   fork?: { atMessage: string };
   command?: string;
+  /** In a container with separate users, the user Claude Code runs as (src/core/run/isolation.ts). */
+  user?: { uid: number; gid: number };
 }
 
 export interface StreamHandlers {
@@ -76,7 +79,11 @@ export function claudeArgs(call: ClaudeCall): string[] {
 
 export function runClaude(call: ClaudeCall, handlers: StreamHandlers): Promise<ClaudeOutcome> {
   return new Promise((resolve) => {
-    const child = spawn(call.command ?? "claude", claudeArgs(call), { cwd: call.cwd, env: { ...call.env, ...NO_CONNECTORS_ENV }, stdio: ["ignore", "pipe", "pipe"] });
+    // With separate users, setpriv starts Claude Code as the agent user with all its groups, so it can write the
+    // project, which belongs to a group it shares with the worker. Node's own uid option drops those groups.
+    const command = call.command ?? "claude";
+    const [file, args] = call.user ? ["setpriv", [`--reuid=${call.user.uid}`, `--regid=${call.user.gid}`, "--init-groups", "--", command, ...claudeArgs(call)]] : [command, claudeArgs(call)];
+    const child = spawn(file, args, { cwd: call.cwd, env: { ...call.env, ...NO_CONNECTORS_ENV }, stdio: ["ignore", "pipe", "pipe"] });
     const transcript: string[] = [];
     let stderr = "";
     let sawResult = false;
@@ -146,5 +153,10 @@ export function copySessionFile(oldCwd: string, newCwd: string, session: string,
   if (!source) return "missing";
   mkdirSync(folderFor(real(newCwd)), { recursive: true });
   copyFileSync(source, target);
+  const iso = userIsolation(env);
+  if (iso) {
+    giveToAgent(folderFor(real(newCwd)), iso);
+    giveToAgent(target, iso);
+  }
   return "copied";
 }

@@ -16,6 +16,7 @@ This table is written by `npm run deps:render` from `package.json` and the insta
 <!-- deps:start -->
 | Package | Installed version | License | Used for | Runtime or development |
 |---|---|---|---|---|
+| `@cloudflare/containers` | 0.3.7 | MIT OR Apache-2.0 | Starts the container of a Claude Code job in the workspace and intercepts its calls to the API | Runtime |
 | `acorn` | 8.19.0 | MIT | Parses JavaScript for the code-reading checks of the hosted code migration | Runtime |
 | `yaml` | 2.9.1 | ISC | Reads and writes the charter file | Runtime |
 | `zod` | 4.6.7 | MIT | Schemas for the charter, ledger entries and hook input | Runtime |

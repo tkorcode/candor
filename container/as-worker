@@ -1,0 +1,6 @@
+#!/bin/sh
+# Claude Code runs as the user agent. It hands each shell command to this file as one string
+# (CLAUDE_CODE_SHELL_PREFIX), and the command runs as the user worker, who cannot read Candor's
+# secret or open the daemon socket (src/core/run/isolation.ts).
+# umask 002 keeps what the worker makes writable by agent, who shares the project group.
+exec sudo -n -E -u worker -- /bin/bash -c "umask 002; $1"

@@ -3,6 +3,7 @@ import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, sta
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { exportSnapshot } from "../checkpoint/snapshot.js";
+import { handToWorker, userIsolation } from "../run/isolation.js";
 import type { Charter } from "../charter/schema.js";
 import { matchesPath } from "./glob.js";
 import { personalDataPattern } from "./pii.js";
@@ -39,6 +40,8 @@ export function makeCopy(workspace: string, pristineChecks: string | null): stri
     rmSync(join(target, CHECKS_DIR), { recursive: true, force: true });
     cpSync(pristineChecks, join(target, CHECKS_DIR), { recursive: true });
   }
+  const iso = userIsolation();
+  if (iso) handToWorker(dir, iso);
   return target;
 }
 
@@ -51,6 +54,8 @@ export function makeCopyFromSnapshot(source: { gitDir: string; ref: string }, pr
     rmSync(join(target, CHECKS_DIR), { recursive: true, force: true });
     cpSync(pristineChecks, join(target, CHECKS_DIR), { recursive: true });
   }
+  const iso = userIsolation();
+  if (iso) handToWorker(dir, iso);
   return target;
 }
 
@@ -60,9 +65,11 @@ export function removeCopy(copy: string): void {
 
 export function runShell(command: string, cwd: string, env: Record<string, string> = {}, timeoutMs = 60000): Promise<{ exitCode: number | null; output: string; ms: number }> {
   const started = Date.now();
+  const iso = userIsolation();
   return new Promise((resolve) => {
     const child = spawn("sh", ["-c", command], {
       cwd,
+      ...(iso ? { uid: iso.worker.uid, gid: iso.worker.gid } : {}),
       env: { PATH: process.env.PATH ?? "/usr/bin:/bin", LANG: "C", HOME: join(cwd, ".."), CANDOR_CHECK: "1", ...env },
       stdio: ["ignore", "pipe", "pipe"],
       detached: true,

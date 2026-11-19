@@ -27,6 +27,7 @@
     "hosted:sample": "node scripts/hosted-sample.mjs"
   },
   "dependencies": {
+    "@cloudflare/containers": "^0.3.7",
     "acorn": "^8.19.0",
     "yaml": "^2.9.1",
     "zod": "^4.6.7"

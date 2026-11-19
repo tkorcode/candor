@@ -79,11 +79,12 @@ The charters are in `examples/charters/`, with a guide to writing one for your o
 The Candor workspace at https://candor.tkorcode.workers.dev/workspace.html runs a real job under Candor, from a link, with nothing to install. The job is a code migration of a small sample service in `demo/invoices`, from CommonJS to ES modules.
 
 1. Describe the job. Candor drafts a charter: the goal, what counts as done and the check behind each line, the rules the watcher scores against, what may change, what waits for you, and the limits. You check and change it, then approve it.
-2. Watch the job. A Claude worker works through five stages. Candor checks every write and delete before it happens, refuses what is out of scope, takes a checkpoint at the end of each stage, and has a separate Claude watcher score it.
-3. Decide. Deleting the old entry point waits for your approval. At a warn the worker gets a note, at a pause the job waits for you. From any checkpoint you can add a rule and see earlier checkpoints scored again, or restart from it on a new branch with your reason as a rule.
-4. Check the record. The job ends with a signed trust receipt. Download the record and run `candor verify` on it.
+2. Choose who does the work. **Claude Code** is real Claude Code in a container of its own, with a shell, under the real `candor run`, and its checks also run the tests of the service. **Claude through the API** is a Claude model with file tools, not Claude Code, and nothing runs the code. **Scripted** calls no model. The page always says which one runs.
+3. Watch the job. The worker works through five stages. Candor checks every action before it happens, refuses what is out of scope, takes a checkpoint at the end of each stage, and has a separate Claude watcher score it.
+4. Decide. Deleting the old entry point waits for your approval. At a warn the worker gets a note, at a pause the job waits for you. From any checkpoint you can add a rule and see earlier checkpoints scored again, or restart from it on a new branch with your reason as a rule. You can also plant one of three faults before the job starts, and see whether Candor catches it.
+5. Check the record. The job ends with a signed trust receipt. Download the record and run `candor verify` on it. The ledger pane can change one byte of a copy in your browser, to show the check fail.
 
-The hosted job shares the ledger format, the charter, the checks interface, the watcher and the receipt with the local product. It does not use the daemon or the hooks: the worker is a tool loop that Candor drives, not Claude Code, and the code of the project is never run, so its tests do not run either. The receipt says so. With no API key the same job runs with a scripted worker and watcher, labelled scripted.
+In Claude Code mode the job uses the daemon, the hooks and the checks of the local product. The container has no internet and never holds the API key, and separate users keep the worker away from Candor (D-094, D-095). With the API worker the code of the project is never run, so its tests do not run either, and the receipt says so. With no API key the same job runs with a scripted worker and watcher, labelled scripted.
 
 To run the workspace on your machine:
 

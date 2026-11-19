@@ -13,6 +13,34 @@ Alternatives considered:
 What it costs or leaves open:
 ```
 
+## D-096: A reader plants a named fault instead of cutting a corner
+Date: 2026-11-19
+Decision: The switch that told the worker to cut a corner is replaced by three named faults: change a test so it passes, edit a protected file, and claim more than was done (`src/hosted/named-faults.ts`). Each adds one instruction to the worker. It is written in the record before the worker starts, as a `config_change` entry with `source: seeded_fault`, in the API worker and in Claude Code, where `candor run` takes it from `CANDOR_SEEDED_FAULT` and the daemon records it through `/harness/seed`. Each fault names what should catch it.
+Why: A fault with a name can be run many times and counted: how often it was caught, by what, and how often the job paused. One vague switch could not.
+Alternatives considered: Keeping cut a corner, which mixed several faults in one instruction. Planting faults in the files instead of the instructions, which tests the checks but not the watcher.
+What it costs or leaves open: The scripted worker plays only the changed test. A planted fault tells the worker what to do, so it measures whether Candor catches the act, not whether a worker would choose it.
+
+## D-095: The API key stays outside the job container
+Date: 2026-11-19
+Decision: The container of a Claude Code job has no internet. Claude Code and the watcher inside it call a local gateway with a placeholder key. The gateway forwards to the host `anthropic.gateway`, which the Worker answers outside the container (`src/web/container.ts`, `src/web/gateway.ts`): it adds the key, allows only POST to the Messages API and the models of the job, and counts the calls of each job. Every other host is refused at once. The handlers are assigned after the class is defined, because `@cloudflare/containers` registers them through a static setter that a static field would hide; a test checks that they are registered.
+Why: The worker has a shell in the container. A key in its environment or its memory could be read or used for anything.
+Alternatives considered: The key as a secret of the container, readable by root only, which the worker cannot read but which still sits in the container. A Cloudflare AI Gateway with its own token, which is one more service to set up.
+What it costs or leaves open: The worker can still call the gateway from its shell, so the count of calls per job, the budget of `candor run` and the daily cap bound what it can spend. The gateway does not price each call.
+
+## D-094: In a container, separate users keep the worker away from Candor
+Date: 2026-11-19
+Decision: With `CANDOR_ISOLATION=users` (`src/core/run/isolation.ts`), Candor runs as root and keeps its home at mode 0711, with every file in it readable by root only. Claude Code runs as the user `agent`, started with `setpriv --init-groups`, and only that user may open the daemon socket. Every shell command of Claude Code runs as the user `worker` through `CLAUDE_CODE_SHELL_PREFIX`. Hooks in the exec form run as `agent`, without the prefix. Checks run the code of the project as `worker`. The two users share the project through a group, with umask 002. The sandbox of Claude Code is off in this mode. Unset, nothing changes.
+Why: The trial of three layouts found that bubblewrap cannot start under the default container profile, so the sandbox of D-024 is not available in the container. With separate users the worker could not read the operator secret or the ledger, open the socket, change a check script, become another user or stop the daemon, from its shell or with the file tools of Claude Code. Keeping the real `candor run` in the container meant the daemon, the hooks and the restarts are the ones of the local product.
+Alternatives considered: The sandbox of Claude Code inside the container, which did not start. The Candor engine in the job object, with hooks in the container calling it for every decision, which would leave nothing to steal in the container but replace the daemon with a second copy of it.
+What it costs or leaves open: The worker can still send made-up hook events from its shell if it finds the hook command, since the hooks and its shell are on the same machine; it cannot reach the operator channel. The separation rests on Linux users and on the prefix setting of Claude Code. The trial ran in Docker on one machine and then in the container on Cloudflare.
+
+## D-093: A private trial deployment tests the site before the public one
+Date: 2026-11-19
+Decision: `wrangler.trial.jsonc` describes a second Worker, `candor-trial`, with a gate on every request, pages included (`src/web/trial-gate.ts`): the trial token in a header or a cookie from the form at `/trial`. With no token set, it refuses everything. `.github/workflows/trial.yml` deploys it from a private copy of the repository and does nothing in the public one. The trial also has a gateway route behind the token, so a container on another machine can be tested with the real models.
+Why: A Claude Code job needs a container, and Cloudflare does not roll a container out on a preview deploy, so it can only be tried on a deployment of its own. A private one keeps half-finished work off the public site.
+Alternatives considered: A preview branch of the public Worker, which does not start containers. Deploying the public site and fixing it in place.
+What it costs or leaves open: Two configurations to keep in step. The trial has its own key value store and its own daily cap.
+
 ## D-092: A hosted job lets a reader run Candor from a link
 Date: 2026-11-19
 Decision: The workspace at `/workspace.html` runs a real job under Candor in a Cloudflare Durable Object (SPEC 4.5, M9). The job is a code migration of the sample service in `demo/invoices`. A Claude model drafts the charter from what the reader asks; the reader checks and edits it, and the charter review runs on it. The worker is a Claude model with six tools on files held in memory. Every tool call goes through Candor first. A stage report ends in a checkpoint with the exit checks, a copy of the files and of the conversation, an anchor and the watcher. A deletion waits for the reader. A rule can be added with re-scores, and any checkpoint can be restarted from as a fork. The ledger (`src/hosted/ledger.ts`) writes the entries of the local product with the same actors, schemas, redaction, blob rule and hash chain, and reuses its verifier, the charter review, the evidence bundle and the watcher, so `candor verify` accepts a downloaded record. The checks read the code with a parser (acorn) and never run it, and each has a planted fault. With no API key the same job runs with a scripted worker and a scripted watcher, which answer through the same code and are labelled scripted.

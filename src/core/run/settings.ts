@@ -41,6 +41,8 @@ export interface WorkerSettingsOptions {
   weakNestedSandbox?: boolean;
   /** More paths the worker must not read, such as the answer key folder. */
   protectedReads?: string[];
+  /** In a container with separate users (src/core/run/isolation.ts), the operating system keeps the worker away, so Claude Code's sandbox is off. The permission rules and hooks stay. */
+  usersIsolation?: boolean;
 }
 
 /** In a permission rule an absolute path starts with a double slash. */
@@ -71,7 +73,7 @@ export function buildWorkerSettings(options: WorkerSettingsOptions): Record<stri
   const extra = (options.protectedReads ?? []).map((path) => realpathSync(path));
   const fileTools = ["Edit", "Write", "MultiEdit", "NotebookEdit"];
   return {
-    sandbox: {
+    sandbox: options.usersIsolation ? { enabled: false } : {
       enabled: true,
       failIfUnavailable: true,
       allowUnsandboxedCommands: false,

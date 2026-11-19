@@ -8,7 +8,7 @@ The evaluation is the part of this project a reader will trust least by default 
 2. Where did the separate Claude evaluator help, and where did it fail?
 3. Do workers report their own progress accurately? (self-report agreement on a weaker and a stronger worker model)
 4. What is a checkpoint worth? (restart from a checkpoint against starting over)
-5. Is supervision by exception real? (human review minutes per agent hour)
+5. Do people spend less time watching a long job? (human review minutes per agent hour)
 6. Is the overhead acceptable? (added time, tokens, cost per run)
 7. What does Candor not check? (coverage statement)
 8. When the receipt says the result was verified, is the result right? (accuracy against a known answer)

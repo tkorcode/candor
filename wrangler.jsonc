@@ -1,0 +1,22 @@
+// The hosted Candor Console, deployed as a Cloudflare Worker with static assets (D-088).
+// Build with `npm run site:data`, deploy with `npx wrangler deploy`.
+// The API key is not here. Set ANTHROPIC_API_KEY as a secret in the Cloudflare dashboard.
+{
+  "name": "candor",
+  "main": "src/web/worker.ts",
+  "compatibility_date": "2026-09-01",
+  // The watcher code uses node:crypto.
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": { "directory": "./site", "binding": "ASSETS" },
+  // Spending limits and the cache of the live watcher.
+  "kv_namespaces": [{ "binding": "CANDOR_KV", "id": "557a9e4ac93f4f9786155cf5ec9c2f8b" }],
+  "vars": {
+    "CANDOR_WATCHER_MODEL": "claude-sonnet-5-5",
+    // The most the site spends in a day, in US dollars.
+    "CANDOR_DAILY_USD": "5",
+    // Live watcher calls allowed from one address in an hour.
+    "CANDOR_CALLS_PER_HOUR": "30",
+    // The most one call can spend, in US dollars.
+    "CANDOR_CALL_USD": "0.15"
+  }
+}

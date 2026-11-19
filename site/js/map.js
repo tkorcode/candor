@@ -100,7 +100,7 @@ export function renderMap(container, model, view) {
     g.append(s("circle", { class: "halo", cx: x, cy: y, r: R + 9, fill: "transparent" }));
     if (isSuggested) g.append(s("circle", { cx: x, cy: y, r: R + 8, fill: "none", stroke: "var(--accent)", "stroke-width": 2, "stroke-dasharray": "4 4" }));
     g.append(s("circle", { class: "ring", cx: x, cy: y, r: R + 5, fill: "none", stroke: isSelected ? "var(--accent)" : "transparent", "stroke-width": 2.5 }));
-    const fill = latest === null ? "var(--surface)" : `var(--${t}-bg)`;
+    const fill = t === "warn" || t === "pause" ? `var(--${t}-bg)` : "var(--surface)";
     const stroke = latest === null ? "var(--none)" : `var(--${t}-mark)`;
     if (cp.safety === "record_only") g.append(s("rect", { x: x - R, y: y - R, width: R * 2, height: R * 2, rx: 6, fill, stroke, "stroke-width": 2.5 }));
     else g.append(s("circle", { cx: x, cy: y, r: R, fill, stroke, "stroke-width": 2.5 }));

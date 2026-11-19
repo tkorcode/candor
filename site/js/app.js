@@ -465,7 +465,7 @@ function viewCheckpoint(el) {
       row.append(againstOf(d, charter));
       for (const f of own) {
         const rule = charter?.drift_rules.find((r) => r.id === f.rule);
-        row.append(h("div", { class: "dim-body" }, h("div", {}, h("div", { class: "k" }, `What the watcher found, against: ${rule ? short(rule.text, 70) : f.rule}`), f.summary), h("div", {}, h("div", { class: "k" }, "In the record"), entryLinks(f.entries))));
+        row.append(h("div", { class: "dim-body" }, h("div", {}, h("div", { class: "k" }, rule ? "What the watcher found" : `What the watcher found, against ${f.rule}`), f.summary), h("div", {}, h("div", { class: "k" }, "In the record"), entryLinks(f.entries))));
       }
       dims.append(row);
     }

@@ -26,6 +26,7 @@
     "site:serve": "node scripts/site-data.mjs && node scripts/site-serve.mjs"
   },
   "dependencies": {
+    "acorn": "^8.19.0",
     "yaml": "^2.9.1",
     "zod": "^4.6.7"
   },

@@ -2,6 +2,7 @@ import type { HostConfig } from "../hosted/host.js";
 import { CandorJob, type JobObjectEnv } from "./job-object.js";
 import { charterRoute, json } from "./job-routes.js";
 import { handleRescore, type KvStore, type RescoreEnv } from "./rescore-endpoint.js";
+import { type TrialEnv, trialGate } from "./trial-gate.js";
 
 /**
  * The Cloudflare Worker behind the hosted console (D-088) and the workspace (SPEC 4.5). Static files come from
@@ -9,7 +10,7 @@ import { handleRescore, type KvStore, type RescoreEnv } from "./rescore-endpoint
  * /api/job/* goes to the Durable Object that holds that job. The bindings are in `wrangler.jsonc`, and the API
  * key is a secret set in the Cloudflare dashboard.
  */
-export interface WorkerEnv extends RescoreEnv, JobObjectEnv {
+export interface WorkerEnv extends RescoreEnv, JobObjectEnv, TrialEnv {
   CANDOR_KV?: KvStore;
   ASSETS: { fetch: (input: Request | string | URL) => Promise<Response> };
   CANDOR_JOBS?: { idFromName(name: string): unknown; get(id: unknown): { fetch(request: Request): Promise<Response> } };
@@ -48,6 +49,8 @@ async function jobRequest(request: Request, env: WorkerEnv, path: string): Promi
 
 export default {
   async fetch(request: Request, env: WorkerEnv): Promise<Response> {
+    const closed = await trialGate(request, env);
+    if (closed) return closed;
     const path = new URL(request.url).pathname;
     if (path === RESCORE_PATH) {
       return handleRescore(request, env, { fetchAsset: (p) => env.ASSETS.fetch(new URL(p, request.url)), ...(env.CANDOR_KV ? { kv: env.CANDOR_KV } : {}) });

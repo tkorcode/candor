@@ -1,0 +1,45 @@
+name: trial deploy
+
+# Deploys the private trial Worker (wrangler.trial.jsonc). It runs only in the private trial copy of the
+# repository, never in the public one, and needs the secrets CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: trial-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.repository == 'tkorcode/candor-trial'
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      WRANGLER: npx --yes wrangler@4.160.1
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run check
+      - run: npm run site:data
+      - name: Find or create the KV namespace of the trial
+        run: |
+          id=$($WRANGLER kv namespace list | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const l=JSON.parse(s.slice(s.indexOf("[")));const n=l.find(x=>x.title.endsWith("candor-trial-kv"));process.stdout.write(n?n.id:"")})')
+          if [ -z "$id" ]; then
+            $WRANGLER kv namespace create candor-trial-kv
+            id=$($WRANGLER kv namespace list | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const l=JSON.parse(s.slice(s.indexOf("[")));const n=l.find(x=>x.title.endsWith("candor-trial-kv"));process.stdout.write(n?n.id:"")})')
+          fi
+          test -n "$id"
+          sed -i "s/TRIAL_KV_ID/$id/" wrangler.trial.jsonc
+      - run: $WRANGLER deploy --config wrangler.trial.jsonc

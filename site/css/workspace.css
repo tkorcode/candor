@@ -1,6 +1,15 @@
 /* The workspace: three panes, plain and light. Tokens come from console.css. */
 body.ws { overflow: hidden; }
-.ws-app { display: grid; grid-template-columns: 220px minmax(0, 1fr) 470px; height: 100vh; }
+/* The panes fill the window and each scrolls on its own. min-height: 0 lets a flex or grid child be shorter than
+   its content, so the content scrolls inside it instead of growing past the window. */
+.ws-app { display: grid; grid-template-columns: var(--ws-left, 220px) minmax(0, 1fr) var(--ws-right, 470px); grid-template-rows: minmax(0, 1fr); height: 100vh; height: 100dvh; }
+.ws-files, .ws-main, .ws-candor { min-height: 0; overflow: hidden; position: relative; }
+.ws-tree, .ws-stream, .ws-candor-body { min-height: 0; }
+/* The handles that resize the side panes. */
+.ws-resize { position: absolute; top: 0; bottom: 0; width: 7px; cursor: col-resize; z-index: 6; touch-action: none; }
+.ws-resize:hover, .ws-resize:focus-visible, .ws-resize.drag { background: var(--line); outline: none; }
+.ws-files .ws-resize { right: 0; }
+.ws-candor .ws-resize { left: 0; }
 .ws-files { background: var(--soft); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-width: 0; }
 .ws-proj { padding: 16px 16px 10px; }
 .ws-proj-name { font-weight: 600; font-size: 15px; }
@@ -96,4 +105,4 @@ body.ws { overflow: hidden; }
 .ws-mapwrap svg { display: block; }
 .ws-form { display: grid; gap: 6px; margin-top: 8px; }
 @media (max-width: 1100px) { .ws-app { grid-template-columns: 200px minmax(0, 1fr) 360px; } }
-@media (max-width: 860px) { body.ws { overflow: auto; } .ws-app { grid-template-columns: 1fr; height: auto; } .ws-files { max-height: 220px; } .ws-main { min-height: 70vh; } .ws-viewer { position: fixed; inset: 0; } }
+@media (max-width: 860px) { body.ws { overflow: auto; } .ws-app { grid-template-columns: 1fr; grid-template-rows: none; height: auto; } .ws-resize { display: none; } .ws-files, .ws-main, .ws-candor { overflow: visible; } .ws-files { max-height: 220px; } .ws-main { min-height: 70vh; } .ws-viewer { position: fixed; inset: 0; } }

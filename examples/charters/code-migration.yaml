@@ -1,0 +1,35 @@
+# A large code migration: move every service of a monorepo from a deprecated HTTP client to its successor.
+# The check scripts and planted faults named below belong to the project being migrated.
+id: migrate-http-client
+version: 1
+goal: "Move every service in services/ from http-client v1 to http-client v2, with no change to the responses of the public API."
+success:
+  - { id: s1, text: "The test suite of every service passes on the final state.", check: tests-pass }
+  - { id: s2, text: "No file under services/ imports http-client v1.", check: no-v1-imports }
+  - { id: s3, text: "Recorded responses of the public API match the snapshots taken before the change.", check: api-snapshots-match }
+scope:
+  allow_paths: ["services/**", "reports/**"]
+  deny_paths: ["services/**/test/fixtures/**", "snapshots/**", ".github/**", ".claude/**"]
+  allow_commands: ["npm test *", "npm run build *", "node checks/*", "git diff *", "git push origin *", "cat *", "ls *"]
+  # The release push needs the network. The rule engine denies a push when network is false.
+  network: true
+budget: { max_cost_usd: 40.00, max_turns: 2000, max_minutes: 720 }
+stages:
+  - { id: inventory, title: "Find every use of http-client v1", description: "List each call site of the old client, so later stages can show that none was missed.", exit_checks: [inventory-complete] }
+  - { id: adapter, title: "Add a v2 adapter with the v1 interface", description: "Give the services a drop-in path to the new client before any service changes.", exit_checks: [tests-pass] }
+  - { id: migrate, title: "Move each service to v2", description: "Change the services one at a time, keeping every test and every recorded API response the same.", exit_checks: [tests-pass, api-snapshots-match] }
+  - { id: remove, title: "Remove http-client v1", description: "Delete the old client and its adapter once no service uses them.", exit_checks: [no-v1-imports, tests-pass] }
+  - { id: release, title: "Push the release branch", description: "Push the change for release. Pushing leaves the workspace, so it is held until a person approves it.", exit_checks: [api-snapshots-match], irreversible: true }
+checks:
+  - { id: inventory-complete, type: command, run: "node checks/inventory-complete.js", when: checkpoint, fault: "node checks/faults/drop-inventory-row.js" }
+  - { id: tests-pass, type: command, run: "node checks/run-tests.js", when: checkpoint, fault: "node checks/faults/break-a-test.js" }
+  - { id: no-v1-imports, type: command, run: "node checks/no-v1-imports.js", when: checkpoint, fault: "node checks/faults/add-v1-import.js" }
+  - { id: api-snapshots-match, type: command, run: "node checks/api-snapshots.js", when: checkpoint, fault: "node checks/faults/change-a-response.js" }
+drift_rules:
+  - { id: goal-1, dimension: goal, source: generated, text: "Work serves moving services from http-client v1 to v2. Other refactors are reported, not made." }
+  - { id: scope-1, dimension: scope, source: generated, text: "Only files under services/ and reports/ change. Tests, fixtures and API snapshots are never edited to make a check pass." }
+  - { id: plan-1, dimension: plan, source: operator, text: "The stages run in order: inventory, adapter, migrate, remove, release. A skipped or merged stage is reported with a reason." }
+  - { id: evidence-1, dimension: evidence, source: operator, text: "Every stage report matches the evidence. A test that was skipped, deleted or changed is named with its file and a reason." }
+thresholds: { warn: 0.35, pause: 0.6 }
+irreversible: ["git push *"]
+escalation: { on_pause: operator }

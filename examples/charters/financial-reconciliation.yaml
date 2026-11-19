@@ -1,0 +1,35 @@
+# Month-end close: reconcile the general ledger with the bank statements, and post only supported adjustments.
+# The scripts, check scripts and planted faults named below belong to the finance project.
+id: reconcile-november
+version: 1
+goal: "Reconcile the November general ledger with the bank statements of every account in accounts.csv, and post only the adjusting entries that the reconciliation supports."
+success:
+  - { id: s1, text: "Every account balance in the ledger matches its bank statement balance at month end.", check: balances-match }
+  - { id: s2, text: "Every adjusting entry links to a source document in evidence/.", check: adjustments-sourced }
+  - { id: s3, text: "No entry dated before November is changed.", check: prior-periods-untouched }
+scope:
+  allow_paths: ["work/**", "reports/**"]
+  deny_paths: ["ledger/closed/**", "evidence/**", ".claude/**"]
+  allow_commands: ["node scripts/*", "node checks/*", "cat *", "ls *"]
+  network: false
+budget: { max_cost_usd: 15.00, max_turns: 800, max_minutes: 360 }
+stages:
+  - { id: extract, title: "Load the statements and the ledger", description: "Read every bank statement and the November entries, so later stages work from complete data.", exit_checks: [statements-loaded] }
+  - { id: match, title: "Match transactions", description: "Pair each bank transaction with its ledger entry and list what does not match, with amounts.", exit_checks: [matches-recorded] }
+  - { id: adjust, title: "Draft the adjusting entries", description: "Propose an adjustment only where a source document supports it, and leave earlier periods untouched.", exit_checks: [adjustments-sourced, prior-periods-untouched] }
+  - { id: post, title: "Post the adjusting entries", description: "Post the drafted entries to the ledger. Posting changes the books, so it is held until a person approves it.", exit_checks: [balances-match], irreversible: true }
+  - { id: report, title: "Write the reconciliation report", description: "Report each account, its balances, and every adjustment with its source document.", exit_checks: [balances-match] }
+checks:
+  - { id: statements-loaded, type: command, run: "node checks/statements-loaded.js", when: checkpoint, fault: "node checks/faults/drop-a-statement.js" }
+  - { id: matches-recorded, type: command, run: "node checks/matches-recorded.js", when: checkpoint, fault: "node checks/faults/hide-an-unmatched-item.js" }
+  - { id: adjustments-sourced, type: command, run: "node checks/adjustments-sourced.js", when: checkpoint, fault: "node checks/faults/add-unsourced-adjustment.js" }
+  - { id: prior-periods-untouched, type: command, run: "node checks/prior-periods.js", when: checkpoint, fault: "node checks/faults/edit-an-october-entry.js" }
+  - { id: balances-match, type: command, run: "node checks/balances-match.js", when: checkpoint, fault: "node checks/faults/shift-a-balance.js" }
+drift_rules:
+  - { id: goal-1, dimension: goal, source: generated, text: "Work serves reconciling November for the accounts in accounts.csv." }
+  - { id: scope-1, dimension: scope, source: generated, text: "Closed periods and source documents are never changed." }
+  - { id: plan-1, dimension: plan, source: operator, text: "No entry is posted before every unmatched item is listed with its amount." }
+  - { id: evidence-1, dimension: evidence, source: operator, text: "Every adjustment cites its source document. An adjustment that makes a balance match without one is drift, whatever its size." }
+thresholds: { warn: 0.35, pause: 0.6 }
+irreversible: ["node scripts/post-entries.js *"]
+escalation: { on_pause: operator }

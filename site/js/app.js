@@ -22,6 +22,7 @@ const state = {
   filters: { branch: "all", actor: "all", type: "all", text: "", routine: true },
   open: new Set(),
   guide: [],
+  live: null,
 };
 const $ = (id) => document.getElementById(id);
 const fetchText = async (path) => {
@@ -89,6 +90,14 @@ async function start() {
     cancelAnimationFrame(resize);
     resize = requestAnimationFrame(() => state.model && drawMap());
   });
+  // The live watcher exists only where the endpoint is deployed. It answers a GET with 405, a static copy with 404.
+  fetch("api/rescore", { method: "GET" })
+    .then((r) => r.status === 405)
+    .catch(() => false)
+    .then((live) => {
+      state.live = live;
+      if (state.model && state.tab === "checkpoint") drawView();
+    });
   await openRun(location.hash.slice(1) || state.runs[0]?.id);
 }
 
@@ -223,6 +232,7 @@ function drawMap() {
   box.className = `suggestion ${suggestion.kind}`;
   box.append(h("span", {}, h("strong", {}, suggestion.kind === "suggested" ? `Suggested restart point: ${suggestion.checkpoint.id}. ` : "Restart point. "), suggestion.text));
   if (suggestion.kind === "suggested") box.append(h("button", { class: "link", type: "button", onclick: () => select(suggestion.checkpoint.id) }, `Open ${suggestion.checkpoint.id}`));
+  drawLevels();
   renderMap($("map"), m, { thresholds: state.thresholds, selected: state.selected, suggestion, onSelect: select, onMenu: openMenu, stageTitle, noteSent });
   const legend = clear($("legend"));
   const sw = (cls, color) => h("span", { class: `swatch ${cls}`, style: color ? `background:${color}` : "" });
@@ -238,6 +248,28 @@ function drawMap() {
     h("li", {}, sw("", "var(--fg)"), "scored again"),
     h("li", { class: "map-hint" }, "Right-click a checkpoint for actions"),
   );
+}
+
+/** The warn and pause levels, beside the map they colour. Changing them changes only what this page shows. */
+function drawLevels() {
+  const m = state.model;
+  const t = state.thresholds;
+  const changed = t.warn !== m.thresholds.warn || t.pause !== m.thresholds.pause;
+  const warn = h("input", { type: "range", min: 0.05, max: 0.95, step: 0.05, value: t.warn, "aria-label": "Warn level" });
+  const pause = h("input", { type: "range", min: 0.1, max: 1, step: 0.05, value: t.pause, "aria-label": "Pause level" });
+  const apply = (next) => {
+    state.thresholds = next;
+    drawMap();
+    drawDetail();
+  };
+  warn.addEventListener("change", () => apply({ warn: Number(warn.value), pause: Math.max(Number(pause.value), Number(warn.value)) }));
+  pause.addEventListener("change", () => apply({ warn: Math.min(Number(warn.value), Number(pause.value)), pause: Number(pause.value) }));
+  clear($("levels")).append(...[
+    h("label", { title: "At or above this drift, Candor sends the worker a note and the job goes on." }, "Warn at ", warn, h("span", { class: "mono" }, t.warn.toFixed(2))),
+    h("label", { title: "At or above this drift, every tool call waits for a person." }, "Pause at ", pause, h("span", { class: "mono" }, t.pause.toFixed(2))),
+    changed ? h("span", { class: "changed" }, "What if: the run used ", `${m.thresholds.warn} and ${m.thresholds.pause}`, " ") : null,
+    changed ? h("button", { class: "link", type: "button", onclick: () => apply({ ...m.thresholds }) }, "Back to the run") : null,
+  ].filter(Boolean));
 }
 
 function select(id) {
@@ -375,6 +407,18 @@ function whatHappened(cp) {
   return null;
 }
 
+/** What one question of the watcher is checked against, taken from the charter in force for the score. */
+function againstOf(d, charter) {
+  const rules = (charter?.drift_rules ?? []).filter((r) => r.dimension === d).map((r) => r.text);
+  const box = h("div", { class: "against" }, h("div", { class: "k" }, "Checked against, from the charter"));
+  if (d === "goal") box.append(h("p", {}, h("strong", {}, "Goal: "), charter?.goal ?? ""));
+  if (d === "scope") box.append(h("p", {}, h("strong", {}, "May change: "), charter?.scope.allow_paths.join(", ") || "nothing", h("br"), h("strong", {}, "May never change: "), charter?.scope.deny_paths.join(", ") || "nothing"));
+  if (d === "plan") box.append(h("p", {}, h("strong", {}, "Stages, in order: "), (charter?.stages ?? []).map((s) => s.title).join(", ")));
+  if (d === "evidence") box.append(h("p", {}, "The stage report of the worker, against the ledger entries recorded since the last checkpoint."));
+  if (rules.length) box.append(h("div", { class: "k" }, "Rules"), h("ul", {}, rules.map((r) => h("li", {}, r))));
+  return box;
+}
+
 function viewCheckpoint(el) {
   const m = state.model;
   const cp = m.byId.get(state.selected);
@@ -411,16 +455,17 @@ function viewCheckpoint(el) {
       const v = b.dimensions?.[d] ?? 0;
       const dl = levelFor(v, t);
       const own = (b.findings ?? []).filter((f) => dimensionOf(f) === d);
-      const row = h("div", { class: `dim${own.length || dl !== "ok" ? " flagged" : ""}` },
-        h("div", { class: "dim-row" },
+      const row = h("details", { class: `dim${own.length || dl !== "ok" ? " flagged" : ""}`, open: own.length > 0 ? true : null },
+        h("summary", { class: "dim-row" },
           h("div", {}, h("div", { class: "dim-name" }, d[0].toUpperCase() + d.slice(1)), h("div", { class: "dim-q" }, QUESTION[d])),
           h("span", { class: "track", role: "img", "aria-label": `${d} ${v}` }, h("span", { class: "fill", style: `width:${Math.round(v * 100)}%;background:var(--${dl === "ok" ? "ok" : dl}-mark)` }), h("span", { class: "tick", style: `left:${t.warn * 100}%` }), h("span", { class: "tick", style: `left:${t.pause * 100}%` })),
           h("span", { class: "dim-v" }, fmt(v)),
         ),
       );
+      row.append(againstOf(d, charter));
       for (const f of own) {
         const rule = charter?.drift_rules.find((r) => r.id === f.rule);
-        row.append(h("div", { class: "dim-body" }, h("div", {}, h("div", { class: "k" }, "The rule"), rule?.text ?? f.rule), h("div", {}, h("div", { class: "k" }, "What the watcher found"), f.summary), h("div", {}, h("div", { class: "k" }, "In the record"), entryLinks(f.entries))));
+        row.append(h("div", { class: "dim-body" }, h("div", {}, h("div", { class: "k" }, `What the watcher found, against: ${rule ? short(rule.text, 70) : f.rule}`), f.summary), h("div", {}, h("div", { class: "k" }, "In the record"), entryLinks(f.entries))));
       }
       dims.append(row);
     }
@@ -439,10 +484,11 @@ function viewCheckpoint(el) {
   found.append(
     h("dl", { class: "facts" },
       h("dt", {}, "Exit checks"), h("dd", {}, cp.checks.length ? cp.checks.map((c) => h("div", {}, h("span", { class: `state ${c.body.status === "passed" ? "ok" : "bad"}` }, icon(c.body.status === "passed" ? "check" : "cross", 14), c.body.check), c.body.strength ? h("span", { class: "note" }, ` · ${c.body.strength}`) : "")) : "none here"),
-      h("dt", {}, "Tool calls"), h("dd", {}, `${count("allow")} allowed, ${count("deny")} refused, ${count("hold")} held`),
+      h("dt", {}, "Worker actions"), h("dd", {}, `${count("allow")} allowed, ${count("deny")} refused, ${count("hold")} held for a person`),
       h("dt", {}, "Files changed"), h("dd", {}, cp.changedPaths.length ? cp.changedPaths.slice(0, 6).join(", ") + (cp.changedCount > 6 ? ` and ${cp.changedCount - 6} more` : "") : "none"),
     ),
   );
+  found.append(h("p", { class: "explain" }, "Worker actions are the commands and file edits the worker asks Claude Code to make. Candor checks each one against the charter before it runs."));
   el.append(h("div", { class: "cols", style: "margin-top:16px" }, says, found));
 
   // What a person can do here.
@@ -457,33 +503,13 @@ function viewCheckpoint(el) {
   activity.append(notable.length ? h("ul", { class: "plain" }, notable.slice(0, 20).map((e) => h("li", {}, h("span", { class: "mono note" }, `#${e.seq} `), describe(e)))) : h("p", { class: "note" }, "Nothing was recorded here."));
   if (notable.length > 20) activity.append(h("button", { class: "link", type: "button", onclick: () => goToEntries(notable.map((e) => e.seq)) }, `All ${notable.length} in the ledger`));
 
-  const whatif = h("details", { class: "more" }, h("summary", {}, "What if the warn and pause levels were different?"));
-  const warn = h("input", { type: "range", min: 0.05, max: 0.95, step: 0.05, value: t.warn, "aria-label": "Warn level" });
-  const pause = h("input", { type: "range", min: 0.1, max: 1, step: 0.05, value: t.pause, "aria-label": "Pause level" });
-  const apply = () => {
-    state.thresholds = { warn: Number(warn.value), pause: Math.max(Number(pause.value), Number(warn.value)) };
-    drawMap();
-    drawDetail();
-  };
-  warn.addEventListener("change", apply);
-  pause.addEventListener("change", apply);
-  whatif.append(
-    h("div", { class: "whatif" }, h("label", {}, "Warn ", warn), h("label", {}, "Pause ", pause), h("span", { class: "mono" }, `warn ${t.warn}, pause ${t.pause}`), h("button", { class: "link", type: "button", onclick: () => {
-      state.thresholds = { ...m.thresholds };
-      drawMap();
-      drawDetail();
-    } }, "Back to the charter values")),
-    h("p", { class: "note" }, "This changes only what you see. The run used the levels of its charter."),
-  );
-  if (t.warn !== m.thresholds.warn || t.pause !== m.thresholds.pause) whatif.open = true;
-
   const rows = [cp.first, ...cp.rescores].filter(Boolean);
   const readings = h("details", { class: "more" }, h("summary", {}, `Every score of ${cp.id} (${rows.length})`),
     h("div", { class: "tablewrap" }, h("table", {},
       h("thead", {}, h("tr", {}, h("th", {}, "Score"), h("th", {}, "Charter"), h("th", { class: "num" }, "Drift"), h("th", {}, "Watcher"), h("th", { class: "num" }, "Cost"), h("th", {}, "Entry"))),
       h("tbody", {}, rows.map((r, i) => h("tr", {}, h("td", {}, i === 0 ? "first score" : r.body.status === "scored" ? "scored again" : "not scored again"), h("td", {}, `v${r.body.charter_version ?? 1}`), h("td", { class: "num" }, fmt(r.body.overall)), h("td", {}, r.body.judge_model ?? ""), h("td", { class: "num" }, money(r.body.usage?.cost_usd)), h("td", {}, h("button", { class: "link mono", type: "button", onclick: () => goToEntries([r.seq]) }, `#${r.seq}`))))),
     )));
-  el.append(activity, readings, h("details", { class: "more" }, h("summary", {}, "Drift over the whole run"), trend(m)), evidenceBox(cp), whatif);
+  el.append(activity, readings, h("details", { class: "more" }, h("summary", {}, "Drift over the whole run"), trend(m)), evidenceBox(cp));
 }
 
 /** Drift along the lineage of the active branch, with the warn and pause lines. */
@@ -555,10 +581,19 @@ function liveWatcher(cp) {
     } catch (error) {
       clear(out).append(h("p", {}, `The request did not reach the live watcher: ${error instanceof Error ? error.message : String(error)}. The recorded scores are unchanged.`));
     } finally {
-      button.disabled = false;
+      button.disabled = state.live === false;
     }
   });
-  box.append(h("p", { class: "note" }, "The real watcher reads the same stored evidence again with your rule added. Its answer is labelled live and never changes the signed record."), h("div", { class: "form-row" }, dim, text, button), out);
+  const why = "It calls the real watcher model, on the evidence stored for this checkpoint, with your rule added to the charter. The answer is labelled live and is never added to the signed record.";
+  if (state.live === false) {
+    button.disabled = true;
+    for (const f of [dim, text]) f.disabled = true;
+    box.append(
+      h("p", {}, h("strong", {}, "Runs only on the hosted console. "), `This copy of the site has no live watcher. There, ${why[0].toLowerCase()}${why.slice(1)}`),
+      h("p", { class: "note" }, "On a machine running Candor, candor rule adds a rule to a real run and scores its checkpoints again."),
+      h("div", { class: "form-row" }, dim, text, button),
+    );
+  } else box.append(h("p", { class: "note" }, state.live ? why : `Checking whether the live watcher is here… ${why}`), h("div", { class: "form-row" }, dim, text, button), out);
   return box;
 }
 

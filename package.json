@@ -23,9 +23,11 @@
     "check": "npm run typecheck && npm run lint && npm run deps:check && npm run test",
     "results:redact": "npm run build && node scripts/redact-results.mjs",
     "site:data": "node scripts/site-data.mjs",
-    "site:serve": "node scripts/site-data.mjs && node scripts/site-serve.mjs"
+    "site:serve": "npm run build && node scripts/site-data.mjs && node scripts/site-serve.mjs",
+    "hosted:sample": "node scripts/hosted-sample.mjs"
   },
   "dependencies": {
+    "acorn": "^8.19.0",
     "yaml": "^2.9.1",
     "zod": "^4.6.7"
   },

@@ -8,12 +8,19 @@
   // The watcher code uses node:crypto.
   "compatibility_flags": ["nodejs_compat"],
   "assets": { "directory": "./site", "binding": "ASSETS" },
+  // One Durable Object per hosted job in the workspace (SPEC 4.5). It keeps the job state and moves the job on with alarms.
+  "durable_objects": { "bindings": [{ "name": "CANDOR_JOBS", "class_name": "CandorJob" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["CandorJob"] }],
   // Spending limits and the cache of the live watcher.
   "kv_namespaces": [{ "binding": "CANDOR_KV", "id": "557a9e4ac93f4f9786155cf5ec9c2f8b" }],
   "vars": {
     "CANDOR_WATCHER_MODEL": "claude-sonnet-5-5",
-    // The most the site spends in a day, in US dollars.
-    "CANDOR_DAILY_USD": "5",
+    // The worker of a hosted job.
+    "CANDOR_WORKER_MODEL": "claude-haiku-5-5",
+    // New hosted jobs per UTC day, across all readers.
+    "CANDOR_JOBS_PER_DAY": "200",
+    // The most the live watcher of the console spends in a day, in US dollars. A hosted job has its own budget.
+    "CANDOR_DAILY_USD": "25",
     // Live watcher calls allowed from one address in an hour.
     "CANDOR_CALLS_PER_HOUR": "30",
     // The most one call can spend, in US dollars.

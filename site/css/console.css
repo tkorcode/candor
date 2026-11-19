@@ -220,3 +220,4 @@ input[type="range"] { accent-color: var(--accent); }
 .try { display: inline-flex; gap: 6px; align-items: baseline; text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; color: var(--fg); font-size: 0.86rem; max-width: 100%; }
 .try:hover { border-color: var(--fg); }
 .try-dim { color: var(--muted); font-size: 0.78rem; }
+a.btn { text-decoration: none; display: inline-flex; align-items: center; }

@@ -1,0 +1,8 @@
+{
+  "name": "invoices",
+  "version": "1.4.0",
+  "private": true,
+  "type": "commonjs",
+  "main": "src/index.js",
+  "scripts": { "test": "node --test" }
+}

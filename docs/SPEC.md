@@ -101,6 +101,22 @@ One self-contained file. Sections in this order: job and the two verdicts, succe
 - The pane never blocks the work. If the pane fails, the job and the ledger continue.
 - First-run and empty states say what will appear and how to start.
 
+### 4.5 The hosted job
+
+The workspace at `/workspace.html` lets a reader with nothing installed start a real job under Candor and steer it. It is a code migration of a small sample service, `demo/invoices`, from CommonJS to ES modules with no change to its public functions. The page has three panes: the files of the project on the left, the job in the middle, and Candor on the right.
+
+- **Charter.** The reader describes the job in the middle. A Claude model drafts a charter from that request and the files of the project, choosing only from the checks that exist; with no API key the default charter of the demo is used. The reader then checks and changes it in the Candor pane: the goal, the success criteria and which checks back them, checks of their own (no file under some paths contains some text), the drift rules, the paths that may and may never change, which actions wait for a person, the warn and pause levels, and the budget. The charter review runs on every change. Approving writes the hash of the charter as the first entry of the record and shows the charter as `.candor/charter.md` in the files.
+- **Worker.** A Claude model with six tools: list files, read a file, write a file, delete a file, report a stage, finish. Every tool call goes through Candor before it runs: a ledger entry, the scope rules, and a hold when the action is irreversible. A held action waits for the reader to approve or deny it, inline in the job and at the top of the Candor pane.
+- **Checkpoints.** At each stage report Candor runs the exit checks, keeps a copy of the files and of the conversation, writes an anchor, and calls the watcher with the evidence bundle of the local product. At a warn the worker gets a note. At the pause level the job waits until the reader continues, adds a rule or restarts.
+- **Decisions.** From any checkpoint the reader can add a rule, which makes a new charter version and scores every scored checkpoint of the branch again, keeping both scores, or restart from it as a fork: a new branch from its files and its point in the conversation, with the reason as a rule. The Candor pane has the run map, why each checkpoint scored what it did, the rules, the ledger and the receipt.
+- **Checks.** The checks read the code and never run it: the inventory names every CommonJS file, no CommonJS left in `src/`, every import resolves, the public functions and their parameter counts are unchanged, the tests changed only in their import lines, the package is an ES module, the old entry point is removed. Each has a planted fault it must catch, and the check strength test runs before the job starts.
+- **What it does not check.** The hosted job cannot execute code, so it does not run the tests of the service. The success criterion that the behaviour is unchanged has no check and the receipt shows it as not claimed.
+- **Receipt.** The job ends with a signed receipt with the two verdicts. The reader downloads the ledger, anchors, blobs and receipt as one archive, and `candor verify` checks them.
+- **Limits.** A budget of turns and dollars per job, a cap on tool calls, new jobs per day, one new job per address every few minutes, and a job that waits for a person for more than ten minutes is stopped. A switch tells the worker to cut a corner. It is written to the ledger, so the receipt shows that the fault was seeded.
+- **What it shares with the local product.** The ledger format and its verifier, the charter and its review, the rules, the watcher and its evidence bundle, and the receipt form. Not the daemon and not the hooks: the hosted worker is a tool loop that Candor drives, not Claude Code. The page and the README say so.
+- **Scripted path.** With no API key the same job runs with a scripted worker and a scripted watcher, which give fixed answers through the same code and are labelled scripted in the record.
+- **Later.** Running the tests needs a sandbox that can execute code.
+
 ## 5. Concepts and data model
 
 ### 5.1 Charter
@@ -351,6 +367,7 @@ Work one milestone at a time. Each ends with passing checks, an updated `docs/RO
 | **M5 Receipt and verifier** | Acceptance checks on the final state, the two verdicts, full receipt JSON and HTML, signing, amendment, git anchor, coverage statement, overhead | A person who has never seen the project can open the receipt and run verify. A run with a clean process and a wrong result shows result not verified |
 | **M6 Pane** | Run map, ledger, receipt tabs, band, commands | The demo story runs end to end from the pane in Desktop. Change (D-079): replaced by the hosted console, whose exit criterion is that a reader with nothing installed can follow the story from a link |
 | **M7 Live evaluation** | Live runs on two worker model tiers under caps, self-report agreement, overhead, labelled real runs with traces, the live demo workflow | `docs/RESULTS.md` is generated from `results/`. Every number traces to a file. Change (D-078): reduced to one live drift run with a restart. The two-tier study is not done |
+| **M9 Hosted job** | The workspace of 4.5: a ledger that also works in a Cloudflare Durable Object, the job engine with a scripted worker and the real worker and watcher under caps, the charter drafted by a model, the three-pane page, holds with approve and deny, a rule added with re-scores, and restart as a fork | A reader with nothing installed describes the job, checks and approves the charter, watches each action, checkpoint and score, decides the held deletion, adds a rule or restarts from a checkpoint, and downloads a record that `candor verify` accepts. With no API key the scripted worker runs the same job at no cost |
 | **M8 Package** | README, design decisions, limits, independent review and red-team pass | A new reader can go from the README to a verified receipt in under five minutes |
 
 From M4 onward, run the build itself under the tool where practical, and ship those receipts in the repository.
@@ -364,7 +381,7 @@ Lower priority, in this order:
 1. Receipt amendment (say it is roadmap).
 2. The git anchor (keep the file anchor and say so).
 3. The band and status line.
-4. A second scenario. Do not start one until the first is complete.
+4. A second scenario. Do not start one until the first is complete. Change: the hosted code migration of 4.5 (M9) is started before `npm run demo` is built, because it lets a reader run a job rather than read a recorded one.
 5. Pane polish. The static receipt is the fallback visual.
 
 Do not add features that are not in this file. Several half-finished features are worse than one complete loop.

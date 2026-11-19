@@ -1,0 +1,25 @@
+// A private trial deployment of the site, deployed by .github/workflows/trial.yml from a private copy of the
+// repository. It is the same Worker as wrangler.jsonc, with the trial gate on (src/web/trial-gate.ts): every
+// request needs the trial token. Set ANTHROPIC_API_KEY and CANDOR_TRIAL_TOKEN as secrets of this Worker in the
+// Cloudflare dashboard. The workflow fills in the KV namespace id.
+{
+  "name": "candor-trial",
+  "main": "src/web/worker.ts",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  // The Worker runs first, so the gate also covers the static pages.
+  "assets": { "directory": "./site", "binding": "ASSETS", "run_worker_first": true },
+  "durable_objects": { "bindings": [{ "name": "CANDOR_JOBS", "class_name": "CandorJob" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["CandorJob"] }],
+  "kv_namespaces": [{ "binding": "CANDOR_KV", "id": "TRIAL_KV_ID" }],
+  "observability": { "enabled": true },
+  "vars": {
+    "CANDOR_TRIAL": "1",
+    "CANDOR_WATCHER_MODEL": "claude-sonnet-5-5",
+    "CANDOR_WORKER_MODEL": "claude-haiku-5-5",
+    "CANDOR_JOBS_PER_DAY": "100",
+    "CANDOR_DAILY_USD": "50",
+    "CANDOR_CALLS_PER_HOUR": "120",
+    "CANDOR_CALL_USD": "0.15"
+  }
+}

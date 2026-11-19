@@ -152,6 +152,11 @@ function summaryOf(call: ToolCall): string {
 }
 
 /** What Candor decides about one tool call, before it runs. */
+/** Why an action waits: a deletion cannot be undone inside the job; anything else waits because the charter says so. */
+function holdReason(call: ToolCall, text: string, who: string): string {
+  return call.name === "delete_file" ? `${text} cannot be undone inside the job, so it waits for ${who}.` : `The charter says ${text} waits for ${who}.`;
+}
+
 function decide(job: JobState, call: ToolCall): { decision: "allow" | "deny" | "hold"; rule?: string; reason?: string } {
   const charter = charterOf(job);
   if (job.toolCalls >= MAX_TOOL_CALLS) return { decision: "deny", rule: "budget", reason: `The job has used its ${MAX_TOOL_CALLS} tool calls.` };
@@ -163,7 +168,7 @@ function decide(job: JobState, call: ToolCall): { decision: "allow" | "deny" | "
     if (!matchesPath(charter.scope.allow_paths, path)) return { decision: "deny", rule: "scope", reason: `${path} is outside the paths that may change (${charter.scope.allow_paths.join(", ")}).` };
     const text = `${call.name} ${path}`;
     const irreversible = charter.irreversible.some((pattern) => new RegExp(`^${pattern.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*")}$`).test(text));
-    if (irreversible) return { decision: "hold", rule: "irreversible", reason: `${text} cannot be undone inside the job, so it waits for a person.` };
+    if (irreversible) return { decision: "hold", rule: "irreversible", reason: holdReason(call, text, "a person") };
   }
   return { decision: "allow" };
 }
@@ -333,7 +338,7 @@ async function runCalls(job: JobState, deps: JobDeps, calls: ToolCall[], results
       job.pendingResults = results;
       if (job.status === "running") {
         job.status = "held";
-        job.statusReason = `${summaryOf(call)} cannot be undone inside the job, so it waits for you.`;
+        job.statusReason = holdReason(call, summaryOf(call), "you");
       }
       return;
     }
@@ -363,7 +368,7 @@ async function report(job: JobState, deps: JobDeps, call: ToolCall): Promise<str
   const deviations = Array.isArray(call.input.deviations) ? call.input.deviations.map(String).slice(0, 10) : [];
   const summary = excerpt(String(call.input.summary ?? ""), 1200);
   if (stage === "inventory" && Array.isArray(call.input.inventory)) job.inventory = call.input.inventory.map(String);
-  ledger.append({ type: "stage_report", actor: "worker", branch: job.branch, body: { stage, accepted: known, done: true, confidence: 0.9, summary, deviations, form: "tool", ...(known ? {} : { reason: `There is no stage ${stage} in the charter.` }) } });
+  ledger.append({ type: "stage_report", actor: "worker", branch: job.branch, body: { stage, accepted: known, done: call.input.done !== false, confidence: typeof call.input.confidence === "number" ? Math.min(1, Math.max(0, call.input.confidence)) : 0.9, summary, deviations, form: "tool", ...(known ? {} : { reason: `There is no stage ${stage} in the charter.` }) } });
   if (!known) return `There is no stage ${stage}. The stages are ${charter.stages.map((s) => s.id).join(", ")}.`;
   if (stage !== expected) ledger.append({ type: "check_result", actor: "candord", branch: job.branch, body: { check: "stage_order", stage, expected, status: "noted", output: `Stage ${stage} was reported while ${expected} was next.` } });
   job.stageIndex = Math.max(job.stageIndex, charter.stages.findIndex((s) => s.id === stage) + 1);

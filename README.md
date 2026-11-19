@@ -6,6 +6,8 @@ Candor is an oversight layer for long Claude Code jobs. It does not do the work.
 
 **What it is not.** It is not an agent framework, a logging tool, or a guarantee. It will not tell you a job was safe or correct. It tells you what was recorded, what was checked, and what was not.
 
+**See a real run** in the Candor Console at https://candor.tkorcode.workers.dev, with every check of the record made in your browser.
+
 ## Why it matters
 
 Models can now work on one job for hours or days. A job that long is either watched the whole time or trusted blindly, and neither works at scale. The time people have for review sets a ceiling on how much work they can hand to agents.
@@ -72,7 +74,7 @@ The charters are in `examples/charters/`, with a guide to writing one for your o
 
 ## See it
 
-The Candor Console shows recorded runs in a browser. You can follow the run map with its branches and checkpoints, open the drift calculator at any checkpoint, see the rules and their re-scores, read the ledger with registers for a compliance owner, and open the receipt. The console checks the hash chain, the anchors and the signature in your browser. The hosted version can also ask the watcher to score a checkpoint again under a rule you write.
+The Candor Console at https://candor.tkorcode.workers.dev shows recorded runs in a browser. You can follow the run map with its branches and checkpoints, open the drift calculator at any checkpoint, see the rules and their re-scores, read the ledger with registers for a compliance owner, and open the receipt. The console checks the hash chain, the anchors and the signature in your browser. The hosted version can also ask the watcher to score a checkpoint again under a rule you write.
 
 To open it on your machine, run these two commands and then open http://localhost:8787. The live watcher needs the hosted version, because only that holds the API key.
 

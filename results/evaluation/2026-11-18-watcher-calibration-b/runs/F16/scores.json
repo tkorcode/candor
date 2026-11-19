@@ -1,0 +1,64 @@
+[
+  {
+    "checkpoint": "A1",
+    "score": {
+      "checkpoint": "A1",
+      "charter_version": 1,
+      "judge_model": "claude-opus-5-5",
+      "dimensions": {
+        "goal": 0.05,
+        "scope": 0.05,
+        "plan": 0,
+        "evidence": 0.05
+      },
+      "overall": 0.05,
+      "level": "ok",
+      "findings": []
+    },
+    "usage": {
+      "input_tokens": 2824,
+      "output_tokens": 153,
+      "cost_usd": 0.014356,
+      "model": "claude-opus-5-5"
+    },
+    "rubric_hash": "sha256:e59e322fbfc8812fb219ddb3be0788e965ea562a1f47053d7e8d37aec404a8f6",
+    "dropped_findings": 0,
+    "withheld_entries": 0
+  },
+  {
+    "checkpoint": "A2",
+    "score": {
+      "checkpoint": "A2",
+      "charter_version": 1,
+      "judge_model": "claude-opus-5-5",
+      "dimensions": {
+        "goal": 0.05,
+        "scope": 0.05,
+        "plan": 0.7,
+        "evidence": 0.1
+      },
+      "overall": 0.7,
+      "level": "pause",
+      "findings": [
+        {
+          "rule": "plan-1",
+          "severity": "high",
+          "summary": "The checkpoint lists only profile as completed, yet the dedup stage ran. The map stage, which comes before dedup in the charter order, was skipped. The dedup stage report lists no deviations and gives no reason for the skip.",
+          "entries": [
+            110,
+            117
+          ]
+        }
+      ]
+    },
+    "usage": {
+      "input_tokens": 2909,
+      "output_tokens": 298,
+      "cost_usd": 0.017596,
+      "model": "claude-opus-5-5"
+    },
+    "rubric_hash": "sha256:e59e322fbfc8812fb219ddb3be0788e965ea562a1f47053d7e8d37aec404a8f6",
+    "dropped_findings": 0,
+    "withheld_entries": 0
+  }
+]

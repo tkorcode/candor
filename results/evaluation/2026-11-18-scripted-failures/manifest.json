@@ -1,0 +1,11 @@
+{
+  "mode": "scripted scenarios against the real daemon and checks",
+  "model_calls": 0,
+  "date": "2026-11-18",
+  "split_seed": 20261119,
+  "git_commit": "bc557f24faab2fed344eb27aeb989ddb6d7288dd",
+  "charter": "demo/charter.yaml",
+  "scenarios_authored_before_results": true,
+  "scenarios_changed_after_results": false,
+  "counting_rule_changed_after_results": "F19 counting changed after the first run (D-063), and the demo answer key was extended after the result for F19 (D-065)"
+}

@@ -92,8 +92,10 @@ describe("a hosted job with the model worker", () => {
   function fakeApi() {
     const problems: string[] = [];
     let turn = 0;
+    const systems = new Set<string>();
     const fetchImpl = (async (_url: string, init: { body: string }) => {
-      const req = JSON.parse(init.body) as { messages: { role: string; content: unknown }[] };
+      const req = JSON.parse(init.body) as { system: string; messages: { role: string; content: unknown }[] };
+      systems.add(req.system);
       req.messages.forEach((m, i) => {
         if (m.role !== "assistant" || !Array.isArray(m.content)) return;
         const ids = (m.content as { type: string; id: string }[]).filter((b) => b.type === "tool_use").map((b) => b.id);
@@ -109,7 +111,7 @@ describe("a hosted job with the model worker", () => {
       const content = [...(step.text ? [{ type: "text", text: step.text }] : []), ...step.calls.map((c) => ({ type: "tool_use", id: `${c.id}-t${turn}`, name: c.name, input: c.input }))];
       return new Response(JSON.stringify({ content, stop_reason: "tool_use", usage: { input_tokens: 1000, output_tokens: 200 } }));
     }) as unknown as typeof fetch;
-    return { fetchImpl, problems };
+    return { fetchImpl, problems, systems };
   }
 
   it("keeps the conversation valid through a warn, a hold, a rule and a restart", async () => {
@@ -125,7 +127,29 @@ describe("a hosted job with the model worker", () => {
     if (job.status === "held") await decideHeld(job, d, true);
     await runUntilStill(job, d);
     expect(api.problems).toEqual([]);
+    // The system prompt never changes, so signed reasoning from before a rule or a restart stays valid.
+    expect(api.systems.size).toBe(1);
     expect(job.workerCost).toBeGreaterThan(0);
     expect(verifyLines(job.ledger.lines).ok).toBe(true);
+  });
+
+  it("drops signed reasoning once and sends again when the API says it no longer matches", async () => {
+    const { modelWorker } = await import("./workers.js");
+    const sent: unknown[][] = [];
+    const fetchImpl = (async (_url: string, init: { body: string }) => {
+      const req = JSON.parse(init.body) as { messages: unknown[] };
+      sent.push(req.messages);
+      if (sent.length === 1) return new Response(JSON.stringify({ type: "error", error: { type: "invalid_request_error", message: "messages.1.content.0: Invalid `signature` in `thinking` block." } }), { status: 400 });
+      return new Response(JSON.stringify({ content: [{ type: "text", text: "ok" }], stop_reason: "end_turn", usage: { input_tokens: 10, output_tokens: 5 } }));
+    }) as unknown as typeof fetch;
+    const worker = modelWorker("test-key", "claude-haiku-5-5", fetchImpl);
+    const messages = [
+      { role: "user" as const, content: "Start." },
+      { role: "assistant" as const, content: [{ type: "thinking", thinking: "plan", signature: "old" }, { type: "text", text: "Reading." }] },
+      { role: "user" as const, content: "Go on." },
+    ];
+    const turn = await worker({ system: "s", messages, charter: (await import("./charter.js")).buildCharter({}), step: 0, seededFault: false });
+    expect(turn.text).toBe("ok");
+    expect(JSON.stringify(sent[1])).not.toContain("thinking");
   });
 });

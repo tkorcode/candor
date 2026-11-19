@@ -13,6 +13,27 @@ Alternatives considered:
 What it costs or leaves open:
 ```
 
+## D-091: A success criterion with no check is shown as not claimed
+Date: 2026-11-19
+Decision: The verdict line of the console and the outcome column of its receipt view say that a success criterion with no check is not claimed, and count it apart from a criterion that failed its check. The demo keeps criterion s3 with no check, and the demo checks and the evaluation stay frozen (D-078).
+Why: "Partly verified" read as a weakness of the run. It is the receipt refusing to claim what nothing checked, which the SPEC uses s3 to show. Saying so turns the gap into what it is.
+Alternatives considered: Writing a check for s3. It reverses D-078, changes the frozen result for F19, and removes the example of an unchecked criterion. Leaving the wording as it was.
+What it costs or leaves open: The demo still ends with result verified partly. A reader who wants yes must add a check to the charter, which is the point.
+
+## D-090: The live watcher offers rules to try, written for the demo
+Date: 2026-11-19
+Decision: The live watcher form offers up to three rules for the selected checkpoint from `site/suggested-rules.json`, with two rules for any other scored checkpoint. A click fills the form, and the reader still asks the watcher, which decides the score. The file is not part of any recorded run and says so. A test holds every rule to a checkpoint that was scored, so the endpoint has stored evidence to read, and to the limits the endpoint accepts.
+Why: A reader who has not used Candor does not know what rule to write, and a vague rule tells them little. A sharp rule at a checkpoint the watcher let pass, such as the email change at B5, shows in one click what a rule change does.
+Alternatives considered: No suggestions. The form stays empty for most readers. Recording the answers to the suggestions as part of the run. They are live answers, not evidence of the run.
+What it costs or leaves open: The suggestions were written after the runs were recorded, by someone who had read them. They show what a rule can do, not what a reader would have thought of.
+
+## D-089: The console is plain, and each checkpoint has one view
+Date: 2026-11-19
+Decision: The console uses neutral surfaces and dark text. The mark keeps the brand colour, and status colour is used only where it carries meaning: scores, the bars of the four questions, and a thin edge on a warn or pause. The page opens with the two verdicts, one line each, and a few sentences built from the ledger on what happened in the run, in place of a strip of story cards. The warn and pause levels sit on the run map they colour. Checkpoint and drift are one view: what happened, why it scored what it did, each question with what it is checked against in the charter, the worker report beside what Candor checked, restart, and the live watcher. A right-click on a checkpoint, the context menu key or an Actions button opens its actions. Every redraw keeps the sections a reader opened or closed, keyboard focus, and live answers.
+Why: A coloured dashboard turned the run into a set of scores and hid what makes it worth reading: who did what, on what evidence, against which rule, and who decided. Two views of one checkpoint split the finding from the reason for it.
+Alternatives considered: A warm palette with coloured panels, which read as a dashboard. The run shown as a conversation between the worker, Candor, the watcher and the operator, previewed and kept for later because it rebuilds the page.
+What it costs or leaves open: The run map still scrolls sideways on a phone. A touch screen has no right-click, so the Actions button is the way to the menu there.
+
 ## D-088: The hosted console runs as a Cloudflare Worker with static assets
 Date: 2026-11-18
 Decision: The console in `site/` is deployed as a Cloudflare Worker with static assets, set up in `wrangler.jsonc`. `src/web/worker.ts` sends `POST /api/rescore` to the live watcher handler in `src/web/rescore-endpoint.ts` and serves every other path from the static files. The KV store for the spending limits, the `nodejs_compat` flag, the watcher model and the limits are in the config. The API key is a secret set in the dashboard. Cloudflare builds with `npm run site:data` and deploys with `npx wrangler deploy`. A test checks the routing. This replaces the Pages Function of D-077.

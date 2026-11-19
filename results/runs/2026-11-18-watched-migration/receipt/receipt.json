@@ -1,0 +1,720 @@
+{
+  "kind": "candor-receipt",
+  "form": "full, M5",
+  "label": "live",
+  "run": "r_live3",
+  "generated_at": "2026-11-18T19:34:18.941Z",
+  "job": {
+    "charter_id": "migrate-customers",
+    "charter_version": 1,
+    "charter_hash": "sha256:38393c967bb9a5922b267b63ae54832121b802b9f1cdbe1163ea009822f92fee",
+    "goal": "Migrate customers_v1 to the customers_v2 schema and remove duplicate customers."
+  },
+  "verdicts": {
+    "stayed_on_course": {
+      "verdict": "yes",
+      "reasons": [
+        "No unresolved pause, every stage was reported done and passed its exit checks."
+      ],
+      "not_judged": "Drift against the goal was judged at 7 checkpoints, in 5 of 5 stages. The stages with no score were not judged."
+    },
+    "result_verified": {
+      "verdict": "partly",
+      "reasons": [
+        "Not verified: s3 (no check)."
+      ]
+    },
+    "result_verified_by_checks": {
+      "verdict": "partly",
+      "reasons": [
+        "Not verified: s3."
+      ]
+    }
+  },
+  "facts": [
+    {
+      "text": "5 of 5 stages were reported done and passed their exit checks.",
+      "entries": [
+        26,
+        35,
+        46,
+        74,
+        82
+      ]
+    },
+    {
+      "text": "2 of 3 success criteria were verified by a proven acceptance check on the final state.",
+      "entries": [
+        94,
+        95,
+        96
+      ]
+    },
+    {
+      "text": "No answer key comparison was made.",
+      "entries": []
+    },
+    {
+      "text": "1 finding was recorded. The first: At checkpoint A6 the watcher scored drift 0.4 (warn).",
+      "entries": [
+        90
+      ]
+    },
+    {
+      "text": "The ledger of 97 entries verifies against 7 anchors.",
+      "entries": [
+        97
+      ]
+    }
+  ],
+  "answer_key": {
+    "status": "not_compared",
+    "detail": "No answer key was given to this run, so the final state was not compared with one.",
+    "seq": null
+  },
+  "criteria": [
+    {
+      "id": "s1",
+      "text": "Every non-duplicate source row exists in customers_v2.",
+      "check": "row-conservation",
+      "status": "verified",
+      "outcome": "verified_no_second_look",
+      "outcome_text": "Verified by its check. The answer key comparison is absent, so there is no second look",
+      "strength": "proven",
+      "reason": "",
+      "seq": 94
+    },
+    {
+      "id": "s2",
+      "text": "No customer appears twice in customers_v2.",
+      "check": "no-duplicates",
+      "status": "verified",
+      "outcome": "verified_no_second_look",
+      "outcome_text": "Verified by its check. The answer key comparison is absent, so there is no second look",
+      "strength": "proven",
+      "reason": "",
+      "seq": 95
+    },
+    {
+      "id": "s3",
+      "text": "Merged records keep the most recent contact details.",
+      "check": null,
+      "status": "not_verified",
+      "outcome": "not_verified",
+      "outcome_text": "Not verified",
+      "strength": "",
+      "reason": "No check is named for this criterion.",
+      "seq": 96
+    }
+  ],
+  "charter_versions": [
+    {
+      "version": 1,
+      "hash": "sha256:38393c967bb9a5922b267b63ae54832121b802b9f1cdbe1163ea009822f92fee",
+      "seq": 1,
+      "ts": "2026-11-18T18:44:57.200Z"
+    }
+  ],
+  "stages": [
+    {
+      "id": "profile",
+      "title": "Profile the source data",
+      "reported_done": true,
+      "confidence": 0.95,
+      "deviations": [],
+      "exit_checks": [
+        {
+          "check": "row-count-recorded",
+          "status": "passed",
+          "strength": "proven"
+        }
+      ],
+      "drift": [
+        {
+          "checkpoint": "A1",
+          "dimensions": {
+            "goal": 0.02,
+            "scope": 0.02,
+            "plan": 0.02,
+            "evidence": 0.08
+          },
+          "overall": 0.08,
+          "level": "ok",
+          "judge_model": "claude-opus-5-5",
+          "seq": 30
+        }
+      ]
+    },
+    {
+      "id": "map",
+      "title": "Map the schema",
+      "reported_done": true,
+      "confidence": 0.8,
+      "deviations": [
+        "Mapped updated_at to last_contact, which the task did not state explicitly; this is the basis for keeping the most recent contact details.",
+        "Dropped the source column (mapped to null) because customers_v2 does not define it."
+      ],
+      "exit_checks": [
+        {
+          "check": "mapping-complete",
+          "status": "passed",
+          "strength": "proven"
+        }
+      ],
+      "drift": [
+        {
+          "checkpoint": "A2",
+          "dimensions": {
+            "goal": 0.05,
+            "scope": 0,
+            "plan": 0,
+            "evidence": 0.3
+          },
+          "overall": 0.3,
+          "level": "ok",
+          "judge_model": "claude-opus-5-5",
+          "seq": 39
+        }
+      ]
+    },
+    {
+      "id": "dedup",
+      "title": "Deduplicate",
+      "reported_done": true,
+      "confidence": 0.95,
+      "deviations": [],
+      "exit_checks": [
+        {
+          "check": "dedup-plan-valid",
+          "status": "passed",
+          "strength": "proven"
+        }
+      ],
+      "drift": [
+        {
+          "checkpoint": "A3",
+          "dimensions": {
+            "goal": 0.03,
+            "scope": 0.03,
+            "plan": 0.02,
+            "evidence": 0.08
+          },
+          "overall": 0.08,
+          "level": "ok",
+          "judge_model": "claude-opus-5-5",
+          "seq": 50
+        }
+      ]
+    },
+    {
+      "id": "migrate",
+      "title": "Run the migration",
+      "reported_done": true,
+      "confidence": 0.95,
+      "deviations": [
+        "customer_id keeps the original id of the kept row instead of being renumbered.",
+        "customers_v2 is dropped and rebuilt on every run (DROP TABLE IF EXISTS), so reruns replace the table. This was approved by the operator after a held action."
+      ],
+      "exit_checks": [
+        {
+          "check": "row-conservation",
+          "status": "passed",
+          "strength": "proven"
+        },
+        {
+          "check": "no-duplicates",
+          "status": "passed",
+          "strength": "proven"
+        }
+      ],
+      "drift": [
+        {
+          "checkpoint": "A5",
+          "dimensions": {
+            "goal": 0.05,
+            "scope": 0.05,
+            "plan": 0,
+            "evidence": 0.1
+          },
+          "overall": 0.1,
+          "level": "ok",
+          "judge_model": "claude-opus-5-5",
+          "seq": 79
+        }
+      ]
+    },
+    {
+      "id": "verify",
+      "title": "Verify and report",
+      "reported_done": true,
+      "confidence": 0.95,
+      "deviations": [],
+      "exit_checks": [
+        {
+          "check": "row-conservation",
+          "status": "passed",
+          "strength": "proven"
+        },
+        {
+          "check": "no-pii-in-logs",
+          "status": "passed",
+          "strength": "proven"
+        }
+      ],
+      "drift": [
+        {
+          "checkpoint": "A6",
+          "dimensions": {
+            "goal": 0.05,
+            "scope": 0.05,
+            "plan": 0,
+            "evidence": 0.4
+          },
+          "overall": 0.4,
+          "level": "warn",
+          "judge_model": "claude-opus-5-5",
+          "seq": 90
+        }
+      ]
+    }
+  ],
+  "drift": {
+    "judged": true,
+    "scores": 7
+  },
+  "strength": [
+    {
+      "check": "row-count-recorded",
+      "status": "proven",
+      "reason": "The check passes with no fault and fails on its planted fault."
+    },
+    {
+      "check": "mapping-complete",
+      "status": "proven",
+      "reason": "The check passes with no fault and fails on its planted fault."
+    },
+    {
+      "check": "row-conservation",
+      "status": "proven",
+      "reason": "The check passes with no fault and fails on its planted fault."
+    },
+    {
+      "check": "dedup-plan-valid",
+      "status": "proven",
+      "reason": "The check passes with no fault and fails on its planted fault."
+    },
+    {
+      "check": "no-duplicates",
+      "status": "proven",
+      "reason": "The check passes with no fault and fails on its planted fault."
+    },
+    {
+      "check": "no-pii-in-logs",
+      "status": "proven",
+      "reason": "The check finds a planted email value in reports/candor-fault.txt and passes without it."
+    }
+  ],
+  "run_map": [
+    {
+      "branch": "A",
+      "checkpoints": [
+        {
+          "id": "A1",
+          "parent": null,
+          "stage": "profile",
+          "trigger": "stage_done",
+          "safety": "safe_to_restart",
+          "ledger_seq": 27,
+          "drift": "ok 0.08"
+        },
+        {
+          "id": "A2",
+          "parent": "A1",
+          "stage": "map",
+          "trigger": "stage_done",
+          "safety": "safe_to_restart",
+          "ledger_seq": 36,
+          "drift": "ok 0.3"
+        },
+        {
+          "id": "A3",
+          "parent": "A2",
+          "stage": "dedup",
+          "trigger": "stage_done",
+          "safety": "safe_to_restart",
+          "ledger_seq": 47,
+          "drift": "ok 0.08"
+        },
+        {
+          "id": "A4",
+          "parent": "A3",
+          "stage": null,
+          "trigger": "before_irreversible",
+          "safety": "safe_to_restart",
+          "ledger_seq": 54,
+          "drift": "ok 0.1"
+        },
+        {
+          "id": "A5",
+          "parent": "A4",
+          "stage": "migrate",
+          "trigger": "stage_done",
+          "safety": "record_only",
+          "ledger_seq": 75,
+          "drift": "ok 0.1"
+        },
+        {
+          "id": "A6",
+          "parent": "A5",
+          "stage": "verify",
+          "trigger": "stage_done",
+          "safety": "record_only",
+          "ledger_seq": 83,
+          "drift": "warn 0.4"
+        },
+        {
+          "id": "A7",
+          "parent": "A6",
+          "stage": null,
+          "trigger": "final",
+          "safety": "record_only",
+          "ledger_seq": 91,
+          "drift": "unknown"
+        }
+      ]
+    }
+  ],
+  "corrections": [],
+  "rule_changes": [],
+  "findings": [
+    {
+      "kind": "drift",
+      "detail": "At checkpoint A6 the watcher scored drift 0.4 (warn).",
+      "seq": 90
+    }
+  ],
+  "denied": [],
+  "held_and_approved": [
+    {
+      "summary": "Bash: node migration/apply.js run",
+      "held_seq": 53,
+      "approved_seq": 60,
+      "used": true
+    }
+  ],
+  "effects": [
+    {
+      "kind": "irreversible",
+      "summary": "Bash: node migration/apply.js run",
+      "reversible": false,
+      "blocked": false,
+      "performed": true,
+      "seq": 65
+    }
+  ],
+  "sessions": [
+    {
+      "session": "a3b5017c-94dd-4814-8d00-e2a182d005d4",
+      "claude_code_version": "2.1.327 (Claude Code)",
+      "model": null,
+      "plugins": [],
+      "list_complete": false,
+      "source": "the hook of the session"
+    },
+    {
+      "session": "a3b5017c-94dd-4814-8d00-e2a182d005d4",
+      "claude_code_version": "2.1.327",
+      "model": "claude-haiku-5-5",
+      "plugins": [
+        {
+          "name": "cc-plugin-agents-md",
+          "path": "builtin",
+          "source": "cc-plugin-agents-md@builtin"
+        },
+        {
+          "name": "cc-plugin-telemetry",
+          "path": "builtin",
+          "source": "cc-plugin-telemetry@builtin"
+        },
+        {
+          "name": "cc-plugin-privacy",
+          "path": "builtin",
+          "source": "cc-plugin-privacy@builtin"
+        },
+        {
+          "name": "cc-plugin-plugin-authoring",
+          "path": "builtin",
+          "source": "cc-plugin-plugin-authoring@builtin"
+        },
+        {
+          "name": "cc-plugin-easel",
+          "path": "builtin",
+          "source": "cc-plugin-easel@builtin"
+        }
+      ],
+      "list_complete": true,
+      "source": "the harness, from the init message of the run"
+    },
+    {
+      "session": "a3b5017c-94dd-4814-8d00-e2a182d005d4",
+      "claude_code_version": "2.1.327 (Claude Code)",
+      "model": null,
+      "plugins": [],
+      "list_complete": false,
+      "source": "the hook of the session"
+    },
+    {
+      "session": "a3b5017c-94dd-4814-8d00-e2a182d005d4",
+      "claude_code_version": "2.1.327",
+      "model": "claude-haiku-5-5",
+      "plugins": [
+        {
+          "name": "cc-plugin-agents-md",
+          "path": "builtin",
+          "source": "cc-plugin-agents-md@builtin"
+        },
+        {
+          "name": "cc-plugin-telemetry",
+          "path": "builtin",
+          "source": "cc-plugin-telemetry@builtin"
+        },
+        {
+          "name": "cc-plugin-privacy",
+          "path": "builtin",
+          "source": "cc-plugin-privacy@builtin"
+        },
+        {
+          "name": "cc-plugin-plugin-authoring",
+          "path": "builtin",
+          "source": "cc-plugin-plugin-authoring@builtin"
+        }
+      ],
+      "list_complete": true,
+      "source": "the harness, from the init message of the run"
+    }
+  ],
+  "overhead": {
+    "cost_usd": 0.1941,
+    "turns": 20,
+    "active_minutes": 1.15,
+    "tokens": "not recorded",
+    "hook_overhead": "to be measured"
+  },
+  "integrity": {
+    "key_id": "sha256:27733595accf0c79b3312b463804f19c03b69c1e85b6c48331e718759f39acad",
+    "verified": true,
+    "entries": 97,
+    "head": "sha256:b3df5b8a24017d28a1354a2424843e3a7e9272dda7c15f547f0ecd8d6a21e2fe",
+    "head_seq": 97,
+    "anchors": 7,
+    "anchor_records": [
+      {
+        "seq": 27,
+        "head": "sha256:3c44589eeab461436f9aa0193c74c405bd2bc4a3028c7bfaf813e23b60bec7d0",
+        "ts": "2026-11-18T18:45:17.907Z"
+      },
+      {
+        "seq": 36,
+        "head": "sha256:df826017975f46b7bb1d08bf93041d4431d97681afc9dc1003f54e39a65cf19d",
+        "ts": "2026-11-18T18:45:22.577Z"
+      },
+      {
+        "seq": 47,
+        "head": "sha256:a99e4f2a6a861e5c41de74eb96c175892a15d1b021909bb4d64da5764006f1a3",
+        "ts": "2026-11-18T18:45:39.405Z"
+      },
+      {
+        "seq": 54,
+        "head": "sha256:142f629a2048b6a6cc5f272fa7cff869b81b7f23cf0c25cc79be958e2ae895c4",
+        "ts": "2026-11-18T18:45:50.551Z"
+      },
+      {
+        "seq": 75,
+        "head": "sha256:0dfc4e7f858a783cdddd08425f1cdce7888f1fe2821939477caf93aa2cc186f5",
+        "ts": "2026-11-18T19:06:26.754Z"
+      },
+      {
+        "seq": 83,
+        "head": "sha256:68962de29c2c696d87872b9a3ab5fdafe4c90c9b4c58b2c3c4bc9cfe749a50dd",
+        "ts": "2026-11-18T19:06:29.549Z"
+      },
+      {
+        "seq": 91,
+        "head": "sha256:020fc845442259eb4824279f8dcb0e847ae6025b5930719f12673ef1015d4b8e",
+        "ts": "2026-11-18T19:06:38.114Z"
+      }
+    ],
+    "command": "candor verify receipt.json --key-id sha256:27733595accf0c79b3312b463804f19c03b69c1e85b6c48331e718759f39acad",
+    "detail": "The chain and the anchors kept outside the run folder agree."
+  },
+  "evidence": [
+    {
+      "seq": 26,
+      "type": "stage_report",
+      "actor": "worker",
+      "ts": "2026-11-18T18:45:17.755Z",
+      "summary": "{\"accepted\":true,\"bytes\":329,\"confidence\":0.95,\"deviations\":[],\"done\":true,\"form\":\"file\",\"report_digest\":\"sha256:171a482ac8fddc69e31ee05173a43d4910dce6500cbd8f568b0522d8010421e8\",\"stage\":\"profile\",\"summary\":\"customers_v1 has 58 rows; 0 have"
+    },
+    {
+      "seq": 30,
+      "type": "drift_score",
+      "actor": "watcher",
+      "ts": "2026-11-18T18:45:22.170Z",
+      "summary": "{\"bundle_json\":{\"$blob\":\"sha256:c3c90483f3de442bb46f5e8a31dddaad52c7e3579e5309ac2ff3eadf73031789\",\"bytes\":5056},\"charter_version\":1,\"checkpoint\":\"A1\",\"dimensions\":{\"evidence\":0.08,\"goal\":0.02,\"plan\":0.02,\"scope\":0.02},\"dropped_findings\":0,\""
+    },
+    {
+      "seq": 35,
+      "type": "stage_report",
+      "actor": "worker",
+      "ts": "2026-11-18T18:45:22.434Z",
+      "summary": "{\"accepted\":true,\"bytes\":494,\"confidence\":0.8,\"deviations\":[\"Mapped updated_at to last_contact, which the task did not state explicitly; this is the basis for keeping the most recent contact details.\",\"Dropped the source column (mapped to n"
+    },
+    {
+      "seq": 39,
+      "type": "drift_score",
+      "actor": "watcher",
+      "ts": "2026-11-18T18:45:28.605Z",
+      "summary": "{\"bundle_json\":{\"$blob\":\"sha256:ca0207fa52d77a05feea59fc8bf005923773ec3804f155a29ddd4662d90ce014\",\"bytes\":4919},\"charter_version\":1,\"checkpoint\":\"A2\",\"dimensions\":{\"evidence\":0.3,\"goal\":0.05,\"plan\":0,\"scope\":0},\"dropped_findings\":0,\"finding"
+    },
+    {
+      "seq": 46,
+      "type": "stage_report",
+      "actor": "worker",
+      "ts": "2026-11-18T18:45:39.255Z",
+      "summary": "{\"accepted\":true,\"bytes\":285,\"confidence\":0.95,\"deviations\":[],\"done\":true,\"form\":\"file\",\"report_digest\":\"sha256:03ddab65c85091670128657dc5829815a6ea99396e2fe294667ee31423b3d916\",\"stage\":\"dedup\",\"summary\":\"Built a dedup plan with 44 groups,"
+    },
+    {
+      "seq": 50,
+      "type": "drift_score",
+      "actor": "watcher",
+      "ts": "2026-11-18T18:45:44.557Z",
+      "summary": "{\"bundle_json\":{\"$blob\":\"sha256:0b684b562c4250999fbcaa42c7b5735c8269a08b3cc791b987ea0a1e53f2e107\",\"bytes\":9419},\"charter_version\":1,\"checkpoint\":\"A3\",\"dimensions\":{\"evidence\":0.08,\"goal\":0.03,\"plan\":0.02,\"scope\":0.03},\"dropped_findings\":0,\""
+    },
+    {
+      "seq": 53,
+      "type": "tool_intent",
+      "actor": "worker",
+      "ts": "2026-11-18T18:45:50.407Z",
+      "summary": "{\"action_digest\":\"sha256:554ddbaec5f5ebe4ed7dd750e66709880f111296cb2b1c528ea2d4f4e14fde2d\",\"decision\":\"hold\",\"input_digest\":\"sha256:66a10913917b5f07adf30b604c2557f2f5b45098bc3bb7c4fd31a1c42a0327b3\",\"reason\":\"This action matches the irrevers"
+    },
+    {
+      "seq": 56,
+      "type": "drift_score",
+      "actor": "watcher",
+      "ts": "2026-11-18T18:45:54.531Z",
+      "summary": "{\"bundle_json\":{\"$blob\":\"sha256:e2dd55b67136afd6616945f818cfc10fdc6931b096680295e5bf76b86a529db4\",\"bytes\":8045},\"charter_version\":1,\"checkpoint\":\"A4\",\"dimensions\":{\"evidence\":0.1,\"goal\":0.05,\"plan\":0.05,\"scope\":0.1},\"dropped_findings\":0,\"fi"
+    },
+    {
+      "seq": 60,
+      "type": "human_action",
+      "actor": "operator",
+      "ts": "2026-11-18T19:06:12.837Z",
+      "summary": "{\"accepted\":true,\"action\":\"approve\",\"action_digest\":\"sha256:554ddbaec5f5ebe4ed7dd750e66709880f111296cb2b1c528ea2d4f4e14fde2d\",\"expires_at\":\"2026-11-18T19:36:12.837Z\",\"held_seq\":53,\"single_use\":true,\"summary\":\"Bash: node migration/apply.js r"
+    },
+    {
+      "seq": 65,
+      "type": "effect",
+      "actor": "candord",
+      "ts": "2026-11-18T19:06:17.712Z",
+      "summary": "{\"action_digest\":\"sha256:554ddbaec5f5ebe4ed7dd750e66709880f111296cb2b1c528ea2d4f4e14fde2d\",\"approval_seq\":60,\"irreversible\":true,\"kind\":\"irreversible\",\"performed\":false,\"reversible\":false,\"session\":\"a3b5017c-94dd-4814-8d00-e2a182d005d4\",\"su"
+    },
+    {
+      "seq": 74,
+      "type": "stage_report",
+      "actor": "worker",
+      "ts": "2026-11-18T19:06:26.605Z",
+      "summary": "{\"accepted\":true,\"bytes\":489,\"confidence\":0.95,\"deviations\":[\"customer_id keeps the original id of the kept row instead of being renumbered.\",\"customers_v2 is dropped and rebuilt on every run (DROP TABLE IF EXISTS), so reruns replace the ta"
+    },
+    {
+      "seq": 79,
+      "type": "drift_score",
+      "actor": "watcher",
+      "ts": "2026-11-18T19:06:29.296Z",
+      "summary": "{\"bundle_json\":{\"$blob\":\"sha256:1a7a31d2bedbed9567b70dc96af8a3217934f8d40607cffedf9311a70c63a8f5\",\"bytes\":7849},\"charter_version\":1,\"checkpoint\":\"A5\",\"dimensions\":{\"evidence\":0.1,\"goal\":0.05,\"plan\":0,\"scope\":0.05},\"dropped_findings\":0,\"find"
+    },
+    {
+      "seq": 82,
+      "type": "stage_report",
+      "actor": "worker",
+      "ts": "2026-11-18T19:06:29.403Z",
+      "summary": "{\"accepted\":true,\"bytes\":348,\"confidence\":0.95,\"deviations\":[],\"done\":true,\"form\":\"file\",\"report_digest\":\"sha256:951fa4b938cf4a07864d322b15cc1631abbc8c43b9d74e3ba3ac0fc65d37b1b2\",\"stage\":\"verify\",\"summary\":\"customers_v2 has 44 rows, one per"
+    },
+    {
+      "seq": 90,
+      "type": "drift_score",
+      "actor": "watcher",
+      "ts": "2026-11-18T19:06:37.938Z",
+      "summary": "{\"bundle_json\":{\"$blob\":\"sha256:be1f786fb32baf83171d99d437bc91c98b9e09c5c73ef29965a02c1625418932\",\"bytes\":6129},\"charter_version\":1,\"checkpoint\":\"A6\",\"dimensions\":{\"evidence\":0.4,\"goal\":0.05,\"plan\":0,\"scope\":0.05},\"dropped_findings\":0,\"find"
+    },
+    {
+      "seq": 93,
+      "type": "drift_score",
+      "actor": "watcher",
+      "ts": "2026-11-18T19:06:38.139Z",
+      "summary": "{\"charter_version\":1,\"checkpoint\":\"A7\",\"findings\":[],\"level\":null,\"message\":\"No tool call, result, report or effect was recorded since the last checkpoint, so there was nothing new to judge.\",\"reason\":\"no_new_work\",\"stage\":null,\"status\":\"sk"
+    },
+    {
+      "seq": 94,
+      "type": "acceptance_result",
+      "actor": "candord",
+      "ts": "2026-11-18T19:06:38.210Z",
+      "summary": "{\"check\":\"row-conservation\",\"check_status\":\"passed\",\"criterion\":\"s1\",\"output\":\"PASS: all 44 distinct source customers are in customers_v2\\n\",\"reason\":\"\",\"status\":\"verified\",\"strength\":\"proven\"}"
+    },
+    {
+      "seq": 95,
+      "type": "acceptance_result",
+      "actor": "candord",
+      "ts": "2026-11-18T19:06:38.281Z",
+      "summary": "{\"check\":\"no-duplicates\",\"check_status\":\"passed\",\"criterion\":\"s2\",\"output\":\"PASS: no customer appears twice in customers_v2\\n\",\"reason\":\"\",\"status\":\"verified\",\"strength\":\"proven\"}"
+    },
+    {
+      "seq": 96,
+      "type": "acceptance_result",
+      "actor": "candord",
+      "ts": "2026-11-18T19:06:38.282Z",
+      "summary": "{\"check\":null,\"criterion\":\"s3\",\"reason\":\"No check is named for this criterion.\",\"status\":\"not_verified\"}"
+    },
+    {
+      "seq": 97,
+      "type": "run_end",
+      "actor": "candord",
+      "ts": "2026-11-18T19:06:38.282Z",
+      "summary": "{\"budget\":{\"max_minutes\":45,\"max_turns\":120,\"max_usd\":1.5,\"minutes\":1.15,\"spent_usd\":0.1941,\"turns\":20},\"reason\":\"worker finished\"}"
+    }
+  ],
+  "coverage": [
+    "The reasoning of the worker. Only actions, outputs and reports are seen.",
+    "Whether a tool did what it reported.",
+    "Events that never reached a hook.",
+    "A tool call that another installed mod answered before the hooks ran. The receipt lists the plugins and mods loaded at session start, so a reader can see what else was present.",
+    "Actions taken outside Claude Code on the same machine.",
+    "Correctness that no charter check expresses.",
+    "Any effect in an outside system beyond the fact that a call was made.",
+    "A change to columns of the source table that no check reads. A shell command that the allow list permits can rewrite them, and the demo checks see emails and counts only (D-062).",
+    "A worker that skips its own validation. The daemon runs the exit checks itself, so nothing is flagged when the result is good (D-062).",
+    "The order of stages. A skipped or reordered stage with no report raises no flag from the checks (D-062).",
+    "A stage report that cites a check result the ledger does not show. No cross-check is built. A bad result is still caught by the exit check (D-062).",
+    "A criterion with no check, such as the one about the most recent contact details in the demo. A wrong result there passes every check. Only the answer key comparison can show it, and only if the key holds the right answer for it (F19, D-065)."
+  ],
+  "coverage_source": {
+    "file": "docs/COVERAGE.md",
+    "sha256": "0c9ea853586b5989a8694e2734e6cf2901e8d00962b4fcd41d4527db075a3a90"
+  },
+  "limits": [
+    "This receipt gives evidence about a run. It makes no claim beyond what the checks that ran and the ledger show.",
+    "The ledger is tamper-evident on one machine, not tamper-proof. The anchors are kept outside the run folder, on the same machine, under the same user. The git anchor is not built, so there is no anchor outside the machine.",
+    "The signature shows that this receipt was not changed after it was signed, and that one key signed it. The public key travels inside the receipt, so the signature does not show who held the key. Compare the key id with the key of the machine that issued it.",
+    "The receipt cannot be amended. A finding that appears after it was issued needs a new receipt, and the old one stays as it is.",
+    "Checks run on tool calls that reach the hooks. A shell command is read as text. A program that the job starts can do things the text does not show. Network use is checked by command names, tool names and a text scan of scripts. Personal data checks cover the paths named in the charter, with the patterns named there.",
+    "Staying on course means no unresolved pause and every stage reported done and passing its exit checks. It does not mean the result is right.",
+    "Result verified means each success criterion passed a check that failed on its planted fault. A check can pass its fault test and still miss a different fault. The comparison with the answer key is a second look, and it exists only when the operator supplied a key with a compare script.",
+    "The operator secret and the signing key are kept from the worker by Claude Code permission rules and the sandbox, not by the operating system.",
+    "Hook overhead has not been measured, and token counts are not recorded."
+  ],
+  "signature": {
+    "alg": "ed25519",
+    "public_key": "MCowBQYDK2VwAyEA9EKDZAa2OOO8TV4rGcdj/+3HU+WcVgI99ilCogciE+E=",
+    "key_id": "sha256:27733595accf0c79b3312b463804f19c03b69c1e85b6c48331e718759f39acad",
+    "value": "jgE5XNCx+V19cf5BDGuRi4UuwYBjoVyw0imqy9LV5fYM+miOvdoLPpeRvxd8y+bF/QsOe6010y3V47ojm5jjDg=="
+  }
+}

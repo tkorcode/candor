@@ -181,6 +181,16 @@ function drawHeader() {
   );
 }
 
+/** Why the result is verified or not, in one line: what was proven, and why the rest is not claimed. */
+function resultReason(criteria, verified) {
+  const unchecked = criteria.filter((c) => c.status !== "verified" && !c.check).length;
+  const failed = criteria.filter((c) => c.status !== "verified" && c.check).length;
+  const parts = [`${verified} of ${criteria.length} success criteria proven`];
+  if (unchecked) parts.push(`${unchecked === 1 ? "one has" : `${unchecked} have`} no check, so ${unchecked === 1 ? "it is" : "they are"} not claimed`);
+  if (failed) parts.push(`${failed} did not pass ${failed === 1 ? "its check" : "their checks"}`);
+  return parts.map((s) => s[0].toUpperCase() + s.slice(1)).join(". ");
+}
+
 function drawVerdicts() {
   const v = state.model.receipt.verdicts;
   const tone = (verdict) => (verdict === "yes" ? "ok" : verdict === "partly" ? "warn" : "pause");
@@ -191,7 +201,7 @@ function drawVerdicts() {
   const verified = criteria.filter((c) => c.status === "verified").length;
   clear($("verdicts")).append(
     row("Stayed on course", v.stayed_on_course, v.stayed_on_course.verdict === "yes" ? "No pause left open, every stage passed its checks" : firstSentences(v.stayed_on_course.reasons?.[0], 1)),
-    row("Result verified", v.result_verified, criteria.length ? `${verified} of ${criteria.length} success criteria proven` : firstSentences(v.result_verified.reasons?.[0], 1)),
+    row("Result verified", v.result_verified, criteria.length ? resultReason(criteria, verified) : firstSentences(v.result_verified.reasons?.[0], 1)),
   );
 }
 
@@ -734,7 +744,7 @@ function viewReceipt(el) {
   el.append(
     h("p", { class: "sum" }, "The document a reviewer who was not there approves from. Signed with Ed25519. Its two verdicts are at the top of this page."),
     h("h3", {}, "Each success criterion"),
-    table(["Criterion", "Check", "Outcome"], (r.criteria ?? []).map((c) => [c.text, c.check ? `${c.check}${c.strength ? ` (${c.strength})` : ""}` : "no check", h("span", { class: `state ${c.status === "verified" ? "ok" : "bad"}` }, icon(c.status === "verified" ? "check" : "partly", 14), c.status === "verified" ? "verified" : "not verified")])),
+    table(["Criterion", "Check", "Outcome"], (r.criteria ?? []).map((c) => [c.text, c.check ? `${c.check}${c.strength ? ` (${c.strength})` : ""}` : "no check", h("span", { class: `state ${c.status === "verified" ? "ok" : "bad"}` }, icon(c.status === "verified" ? "check" : "partly", 14), c.status === "verified" ? "verified" : c.check ? "not verified" : "not claimed, no check")])),
   );
   if ((r.corrections ?? []).length) el.append(h("h3", {}, "Corrections"), h("ul", { class: "plain" }, r.corrections.map((c) => h("li", {}, c.detail))));
   const coverage = r.coverage ?? [];

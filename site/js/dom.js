@@ -40,11 +40,11 @@ export const clear = (el) => {
   return el;
 };
 
-export const fmt = (n, digits = 2) => (typeof n === "number" ? n.toFixed(digits) : "not judged");
+export const fmt = (n, digits = 2) => (typeof n === "number" ? n.toFixed(digits) : "not scored");
 export const money = (n) => (typeof n === "number" ? `${n.toFixed(n < 0.1 ? 4 : 2)} dollars` : "unknown");
 
 /** A level chip with its word, so colour is never the only signal. */
-export const levelChip = (level) => h("span", { class: `chip ${level === "not judged" ? "none" : level}` }, level === "ok" ? "on course" : level);
+export const levelChip = (level) => h("span", { class: `chip ${level === "not scored" ? "none" : level}` }, level === "ok" ? "on course" : level);
 
 /** A file download from data held in the page. */
 export function download(name, text, type) {

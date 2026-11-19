@@ -74,7 +74,7 @@ The charters are in `examples/charters/`, with a guide to writing one for your o
 
 ## See it
 
-The Candor Console at https://candor.tkorcode.workers.dev shows recorded runs in a browser. You can follow the run map with its branches and checkpoints, open the drift calculator at any checkpoint, see the rules and their re-scores, read the ledger with registers for a compliance owner, and open the receipt. The console checks the hash chain, the anchors and the signature in your browser. The hosted version can also ask the watcher to score a checkpoint again under a rule you write.
+The Candor Console at https://candor.tkorcode.workers.dev shows recorded runs in a browser. You can follow the story of the run and its map of branches and checkpoints, see why any checkpoint scored what it did, see the rules and their re-scores, read the ledger with registers for a compliance owner, and open the receipt. The console checks the hash chain, the anchors and the signature in your browser. The hosted version can also ask the watcher to score a checkpoint again under a rule you write.
 
 To open it on your machine, run these two commands and then open http://localhost:8787. The live watcher needs the hosted version, because only that holds the API key.
 

@@ -514,4 +514,57 @@ async function paneReceipt(el) {
   clear(sig).append(h("span", { class: `state ${s.ok ? "ok" : "bad"}` }, s.ok ? `Signature valid, key ${s.keyId.slice(0, 19)}…, checked in your browser.` : s.reason));
 }
 
+/** Drag handles that resize the files pane and the Candor pane. The widths are kept in this browser only. */
+function resizable() {
+  const app = document.querySelector(".ws-app");
+  if (!app) return;
+  const LIMITS = { left: [160, 420], right: [340, 760] };
+  const set = (side, px) => {
+    const [lo, hi] = LIMITS[side];
+    const width = Math.round(Math.min(hi, Math.max(lo, px)));
+    app.style.setProperty(side === "left" ? "--ws-left" : "--ws-right", `${width}px`);
+    try {
+      localStorage.setItem(`candor.ws.${side}`, String(width));
+    } catch {
+      // Storage can be off. The width then lasts until the page is reloaded.
+    }
+  };
+  for (const side of ["left", "right"]) {
+    try {
+      const saved = Number(localStorage.getItem(`candor.ws.${side}`));
+      if (saved) set(side, saved);
+    } catch {
+      // No stored width.
+    }
+  }
+  for (const handle of document.querySelectorAll(".ws-resize")) {
+    const side = handle.dataset.side;
+    const widthAt = (x) => {
+      const box = app.getBoundingClientRect();
+      return side === "left" ? x - box.left : box.right - x;
+    };
+    handle.addEventListener("pointerdown", (e) => {
+      handle.setPointerCapture(e.pointerId);
+      handle.classList.add("drag");
+      const move = (ev) => set(side, widthAt(ev.clientX));
+      const up = () => {
+        handle.classList.remove("drag");
+        handle.removeEventListener("pointermove", move);
+        handle.removeEventListener("pointerup", up);
+      };
+      handle.addEventListener("pointermove", move);
+      handle.addEventListener("pointerup", up);
+      e.preventDefault();
+    });
+    handle.addEventListener("keydown", (e) => {
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      const now = handle.parentElement.getBoundingClientRect().width;
+      const wider = (e.key === "ArrowRight") === (side === "left");
+      set(side, now + (wider ? 24 : -24));
+      e.preventDefault();
+    });
+  }
+}
+
+resizable();
 startPage();

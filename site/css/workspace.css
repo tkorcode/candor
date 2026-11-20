@@ -140,7 +140,7 @@ body.ws { overflow: hidden; }
 /* The drift calculation of a checkpoint. */
 .ws-drift { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: grid; gap: 10px; margin: 6px 0 12px; background: var(--surface); }
 .ws-drift-eq { font-size: 14px; line-height: 1.5; }
-.ws-drift-eq .big { font: 600 22px var(--mono); margin-right: 2px; }
+.ws-drift-eq .big { font: 600 15px var(--mono); margin-right: 2px; }
 .ws-drift-eq .hit { font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
 .ws-drift-scale { position: relative; display: flex; height: 22px; border-radius: 6px; overflow: hidden; font-size: 11px; }
 .ws-drift-scale .seg { display: flex; align-items: center; padding: 0 6px; white-space: nowrap; overflow: hidden; color: var(--fg); }
@@ -173,3 +173,5 @@ body.ws { overflow: hidden; }
 .ws-sample figcaption .f { color: var(--muted); font-family: var(--mono); font-size: 12px; }
 @media (max-width: 640px) { .ws-tests { grid-template-columns: 1fr; } .ws-tests dd { margin-bottom: 6px; } }
 .ws-kind { color: var(--muted); font-size: 13px; }
+.dim.sets { border-left: 3px solid var(--fg); }
+.dim-count { margin-left: 8px; font-size: 11px; font-weight: 600; color: var(--warn); }

@@ -111,15 +111,22 @@ async function approve() {
 
 // ---- the job ----------------------------------------------------------------------------------------------
 
+let lastSeen = "";
 async function poll(id) {
   clearTimeout(state.polling);
+  let same = false;
   try {
-    state.job = await get(`api/job/${id}`);
+    const job = await get(`api/job/${id}`);
+    const seen = JSON.stringify(job);
+    same = seen === lastSeen && !state.error;
+    lastSeen = seen;
+    state.job = job;
     state.error = "";
   } catch (e) {
     state.error = e.message;
   }
-  draw();
+  // The page is drawn again only when the job changed, so a section the reader opens stays as it is.
+  if (!same) draw();
   const s = state.job?.status;
   if (s === "running") state.polling = setTimeout(() => poll(id), 900);
   else if (s === "starting") state.polling = setTimeout(() => poll(id), 2500);
@@ -137,7 +144,18 @@ async function act(action) {
     state.error = e.message;
   }
   state.busy = false;
+  lastSeen = "";
   poll(state.job.id);
+}
+
+/** A section that stays open or closed as the reader left it, across every redraw of the pane. */
+function keep(details, key, openByDefault = false) {
+  const isOpen = key in state.openDims ? state.openDims[key] : openByDefault;
+  details.open = isOpen;
+  // Recorded on the click, before the browser toggles, so a redraw in between cannot undo it.
+  details.querySelector("summary")?.addEventListener("click", () => (state.openDims[key] = !details.open));
+  details.addEventListener("toggle", () => (state.openDims[key] = details.open));
+  return details;
 }
 
 const model = () => {
@@ -336,7 +354,7 @@ function drawStream() {
     if (e.type === "tool_result" && e.body.tool === "Bash" && e.body.output_excerpt) {
       flush();
   if (olderCount) {
-    const fold = h("details", { class: "ws-older" }, h("summary", {}, `Earlier branch, before the restart (${olderCount} events)`), older);
+    const fold = keep(h("details", { class: "ws-older" }, h("summary", {}, `Earlier branch, before the restart (${olderCount} events)`), older), "older");
     col.insertBefore(fold, col.children[1] ?? null);
   }
       put(col, h("pre", { class: "ws-out" }, String(e.body.output_excerpt).replace(/^stdout: /, "").split("\n").slice(0, 14).join("\n")));
@@ -635,28 +653,26 @@ function paneRun(el) {
       const rule = charter?.drift_rules.find((r) => r.id === f.rule);
       return h("div", { class: "dim-body" }, h("div", {}, f.severity ? h("span", { class: `chip ${f.severity === "high" ? "pause" : f.severity === "medium" ? "warn" : "none"}` }, f.severity) : null, h("div", { class: "k", style: "margin-top:6px" }, "Against the rule"), rule?.text ?? f.rule ?? "No rule named", h("div", { class: "k", style: "margin-top:6px" }, "What the watcher found"), f.summary, (f.entries ?? []).length ? h("div", { class: "k", style: "margin-top:6px" }, "In the ledger") : null, (f.entries ?? []).length ? (f.entries ?? []).map((n) => `#${n}`).join(" ") : null));
     };
+    // The calculation itself: the overall drift is the highest of the four dimensions, compared with the two levels.
+    const scores = DIMENSIONS.map((d) => [d, b.dimensions?.[d] ?? 0]);
+    const top = scores.reduce((a, c) => (c[1] > a[1] ? c : a));
     for (const d of DIMENSIONS) {
       const v = b.dimensions?.[d] ?? 0;
       const dl = levelFor(v, t);
       const own = findings.filter((f) => dimOf(f) === d);
       const rules = (charter?.drift_rules ?? []).filter((r) => r.dimension === d);
       // The pane is drawn again on every update, so whether a dimension is open is kept per checkpoint.
-      const key = `${cp.id}:${d}`;
-      const isOpen = key in state.openDims ? state.openDims[key] : own.length > 0;
-      const row = h("details", { class: `dim${own.length ? " flagged" : ""}`, ...(isOpen ? { open: true } : {}) },
-        h("summary", {}, h("div", { class: "dim-row" }, h("div", {}, h("div", { class: "dim-name" }, d[0].toUpperCase() + d.slice(1)), h("div", { class: "dim-q" }, QUESTION[d])), h("span", { class: "track" }, h("span", { class: "fill", style: `width:${Math.round(v * 100)}%;background:var(--${dl === "ok" ? "ok" : dl}-mark)` }), h("span", { class: "tick", style: `left:${t.warn * 100}%` }), h("span", { class: "tick", style: `left:${t.pause * 100}%` })), h("span", { class: "dim-v" }, fmt(v)))),
+      const sets = d === top[0] && v > 0;
+      const row = h("details", { class: `dim${sets ? " sets" : ""}` },
+        h("summary", {}, h("div", { class: "dim-row" }, h("div", {}, h("div", { class: "dim-name" }, d[0].toUpperCase() + d.slice(1), own.length ? h("span", { class: "dim-count" }, own.length === 1 ? "1 finding" : `${own.length} findings`) : null), h("div", { class: "dim-q" }, sets ? "Sets the score" : QUESTION[d])), h("span", { class: "track" }, h("span", { class: "fill", style: `width:${Math.round(v * 100)}%;background:var(--${dl === "ok" ? "ok" : dl}-mark)` }), h("span", { class: "tick", style: `left:${t.warn * 100}%` }), h("span", { class: "tick", style: `left:${t.pause * 100}%` })), h("span", { class: "dim-v" }, fmt(v)))),
         ...own.map(finding),
         own.length ? null : h("div", { class: "dim-body" }, h("div", {}, "The watcher found nothing against these rules here.")),
         h("div", { class: "dim-body" }, h("div", {}, h("div", { class: "k" }, rules.length === 1 ? "The rule" : "The rules"), rules.length ? h("ul", { class: "dim-rules" }, rules.map((r) => h("li", {}, r.text))) : h("div", { class: "note" }, "No rule on this dimension."))),
       );
-      row.addEventListener("toggle", () => (state.openDims[key] = row.open));
-      dims.append(row);
+      dims.append(keep(row, `${cp.id}:${d}`, own.length > 0));
     }
     const loose = findings.filter((f) => !dimOf(f));
-    if (loose.length) dims.append(h("details", { class: "dim flagged", open: true }, h("summary", {}, h("div", { class: "dim-name" }, "Other findings")), ...loose.map(finding)));
-    // The calculation itself: the overall drift is the highest of the four dimensions, compared with the two levels.
-    const scores = DIMENSIONS.map((d) => [d, b.dimensions?.[d] ?? 0]);
-    const top = scores.reduce((a, c) => (c[1] > a[1] ? c : a));
+    if (loose.length) dims.append(keep(h("details", { class: "dim" }, h("summary", {}, h("div", { class: "dim-name" }, "Other findings")), ...loose.map(finding)), `${cp.id}:other`, true));
     const sum = h("div", { class: "ws-drift" },
       h("div", { class: "ws-drift-eq" },
         h("span", { class: "big" }, fmt(latest)),
@@ -670,14 +686,14 @@ function paneRun(el) {
         h("span", { class: "pin", style: `left:${Math.min(99, latest * 100)}%` }),
       ),
       h("div", { class: "s" }, `${top[0][0].toUpperCase()}${top[0].slice(1)} sets the score. ${lvl === "pause" ? "At or above the pause level, so the job waits for you." : lvl === "warn" ? "At or above the warn level, so the worker got a note with the finding." : "Below the warn level, so the job goes on."}`),
-      h("details", { class: "ws-how" }, h("summary", {}, "How each dimension is scored"),
+      keep(h("details", { class: "ws-how" }, h("summary", {}, "How each dimension is scored"),
         h("ul", {},
           h("li", {}, `A separate Claude model, ${cp.latest.body.judge_model === "scripted-watcher" ? "here a scripted stand-in" : cp.latest.body.judge_model}, with no tools, reads the evidence of this stage as data: the stage report, the files changed, the check results and the ledger entries since the last checkpoint. It never sees the worker's reasoning.`),
           h("li", {}, "It scores each dimension from 0, on course, to 1, off course, against the charter's rules for that dimension. 0.5 means it cannot tell."),
           h("li", {}, "Every finding names one rule and cites the ledger entries that show it. A finding with no entry is dropped."),
           h("li", {}, "The overall drift is the highest of the four, not the average, so one dimension far off course is enough to warn or pause."),
           h("li", {}, "When you add a rule, every scored checkpoint of the branch is scored again under it, and both scores are kept."),
-        )),
+        )), "how"),
     );
     put(el, h("div", { class: "note" }, `Why this score${cp.latest.type === "rescore" ? `, after the rules changed (charter version ${b.charter_version})` : ""}.`), sum, dims);
     if (cp.rescores.length && cp.first) put(el, h("p", { class: "note" }, `First score ${fmt(cp.first.body.overall)}, now ${fmt(latest)}. Both are kept in the ledger.`));

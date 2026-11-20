@@ -60,7 +60,7 @@ const projects = [
     ],
     run: "node demo/make-project.mjs ../work",
     run_note: { href: "https://github.com/tkorcode/candor#run-a-job-under-candor", text: "Then review and approve the charter and start candor run, as the README shows" },
-    link: { href: "index.html", text: "Open the recorded runs" },
+    link: { href: "./?runs", text: "Open the recorded runs" },
     files_note: "The data, data/customers.db, is made by make-project.mjs from a fixed seed, so it is not listed.",
     files: files([["charter.yaml", "demo/charter.yaml"], ["task.txt", "demo/task.txt"], ["make-project.mjs", "demo/make-project.mjs"], ...tree("demo/project")]),
   },

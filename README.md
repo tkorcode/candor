@@ -6,7 +6,7 @@ Candor is an oversight layer for long Claude Code jobs. It does not do the work.
 
 **What it is not.** It is not an agent framework, a logging tool, or a guarantee. It will not tell you a job was safe or correct. It tells you what was recorded, what was checked, and what was not.
 
-**See a real run** in the Candor Console at https://candor.tkorcode.workers.dev, with every check of the record made in your browser.
+**See a real run** in the Candor Console at https://candor.tkorcode.workers.dev/?runs, with every check of the record made in your browser.
 
 ## Why it matters
 
@@ -76,7 +76,7 @@ The charters are in `examples/charters/`, with a guide to writing one for your o
 
 ### Run a job yourself
 
-The Candor workspace at https://candor.tkorcode.workers.dev/workspace.html runs a real job under Candor, from a link, with nothing to install. The job is a code migration of a small sample service in `demo/invoices`, from CommonJS to ES modules.
+The Candor workspace at https://candor.tkorcode.workers.dev runs a real job under Candor, from a link, with nothing to install. The job is a code migration of a small sample service in `demo/invoices`, from CommonJS to ES modules.
 
 1. Describe the job. Candor drafts a charter: the goal, what counts as done and the check behind each line, the rules the watcher scores against, what may change, what waits for you, and the limits. You check and change it, then approve it.
 2. Choose who does the work. **Claude Code** is real Claude Code in a container of its own, with a shell, under the real `candor run`, and its checks also run the tests of the service. **Claude through the API** is a Claude model with file tools, not Claude Code, and nothing runs the code. **Scripted** calls no model. The page always says which one runs.
@@ -97,7 +97,7 @@ Then open http://localhost:8787/workspace.html. It uses the scripted worker and 
 
 ### Recorded runs
 
-The Candor Console at https://candor.tkorcode.workers.dev shows recorded runs in a browser. You can follow the story of the run and its map of branches and checkpoints, see why any checkpoint scored what it did, see the rules and their re-scores, read the ledger with registers for a compliance owner, and open the receipt. The console checks the hash chain, the anchors and the signature in your browser. The hosted version can also ask the watcher to score a checkpoint again under a rule you write.
+The Candor Console at https://candor.tkorcode.workers.dev/?runs shows recorded runs in a browser. You can follow the story of the run and its map of branches and checkpoints, see why any checkpoint scored what it did, see the rules and their re-scores, read the ledger with registers for a compliance owner, and open the receipt. The console checks the hash chain, the anchors and the signature in your browser. The hosted version can also ask the watcher to score a checkpoint again under a rule you write.
 
 To open it on your machine, run `npm run site:serve` and open http://localhost:8787. The live watcher needs the hosted version, because only that holds the API key.
 

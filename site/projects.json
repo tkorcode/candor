@@ -110,7 +110,7 @@
         "text": "Then review and approve the charter and start candor run, as the README shows"
       },
       "link": {
-        "href": "index.html",
+        "href": "./?runs",
         "text": "Open the recorded runs"
       },
       "files_note": "The data, data/customers.db, is made by make-project.mjs from a fixed seed, so it is not listed.",

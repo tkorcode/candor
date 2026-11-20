@@ -49,7 +49,7 @@ export interface CcJob {
 }
 
 /** How long after the end a restart is still possible. Then the job object destroys the container, so idle ones do not take the places of new jobs. */
-export const RESTART_WINDOW_MS = 10 * 60 * 1000;
+export const RESTART_WINDOW_MS = 15 * 60 * 1000;
 
 const newToken = () => Array.from(crypto.getRandomValues(new Uint8Array(24)), (b) => b.toString(16).padStart(2, "0")).join("");
 
@@ -149,7 +149,7 @@ export async function actCc(job: CcJob, box: Box, action: Record<string, unknown
     // After the end only a restart is taken, and only while the container is still there: calling a container that
     // has shut down would start an empty one.
     if (action.kind !== "restart") throw new Error("The job has ended. You can still restart it from a checkpoint.");
-    if (job.containerGone || !job.endedAt || now - job.endedAt > RESTART_WINDOW_MS) throw new Error("This job ended more than 10 minutes ago and its container has been shut down. Start a new job to try again.");
+    if (job.containerGone || !job.endedAt || now - job.endedAt > RESTART_WINDOW_MS) throw new Error("This job ended more than 15 minutes ago and its container has been shut down. Start a new job to try again.");
   }
   const res = await box.fetch("/act", { method: "POST", body: action });
   if (res.status !== 200) throw new Error(String(res.body.error ?? `The container answered ${res.status}.`));

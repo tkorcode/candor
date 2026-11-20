@@ -10,7 +10,7 @@ Candor is an oversight layer for long Claude Code jobs. Claude Code does the wor
 
 Candor is not an agent framework or a logging tool, and it does not certify that a job was safe or correct. The receipt states what was recorded, what was checked, and what was not checked.
 
-**Try it** at https://candor.tkorcode.workers.dev. It runs a real job under Candor in the browser, with nothing to install. Recorded runs are at https://candor.tkorcode.workers.dev/?runs.
+**Try it** at https://candor.tkorcode.workers.dev. It runs a real job under Candor in the browser, with nothing to install.
 
 ## Background
 
@@ -179,7 +179,7 @@ flowchart LR
 
 Everything specific to a job is in one file, the charter. It is approved before the run, and a new version is created whenever a rule changes. The engine that enforces the charter has no knowledge of the job itself.
 
-| Set in the charter | Fixed in Candor |
+| You set in the charter | Built into Candor, same for every job |
 |---|---|
 | The goal, and the success criteria, each with an acceptance check | What is recorded: every action, decision, check, score, rule change and restart |
 | The paths the job may change, the commands it may run, and network access | The four drift dimensions, and the rule that drift is the highest of them |
@@ -192,18 +192,7 @@ What is checked can be configured, but what is recorded cannot. This prevents th
 
 ## Running a job locally
 
-Live runs need Node 22, `sqlite3`, Claude Code 2.1.295 or later and an `ANTHROPIC_API_KEY`, on macOS or on Linux with bubblewrap. `candor doctor` checks the setup. To run the demo job:
-
-```bash
-node demo/make-project.mjs ../work
-node bin/candor.js charter review demo/charter.yaml \
-  --accept unchecked_criterion:s3="Not checked in this demo. The receipt lists it as not verified." \
-  --accept check_without_fault:no-pii-in-logs="A pattern check. The strength test plants a value of its own."
-node bin/candor.js charter approve demo/charter.yaml --run r_demo1
-node bin/candor.js run r_demo1 --workspace ../work --task "$(cat demo/task.txt)" --oracle ../work-oracle
-```
-
-While the job runs, `candor status`, `candor approve`, `candor rule` and `candor restart` act on it from a second terminal. `candor receipt r_demo1` writes the receipt when it ends.
+Candor can also run a job on your own machine with `candor run`. This needs Node 22, `sqlite3`, Claude Code 2.1.295 or later and an `ANTHROPIC_API_KEY`, on macOS or on Linux with bubblewrap. `candor doctor` checks the setup, and `demo/` holds a sample job with its charter and task.
 
 ## Evaluation and limitations
 

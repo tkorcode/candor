@@ -853,7 +853,7 @@ function restartWindow(j) {
   if (j.restartableUntil === undefined || j.restartableUntil === null) return { ok: true, note: "" };
   if (j.restartableUntil === 0) return { ok: false, note: "The container of this job has been shut down. Start a new job to try again." };
   const left = Math.max(0, Math.round((j.restartableUntil - Date.now()) / 60000));
-  return left > 0 ? { ok: true, note: `The job has ended. You can restart it for about ${left} more minute${left === 1 ? "" : "s"}.` } : { ok: false, note: "The container of this job has been shut down. Start a new job to try again." };
+  return left > 0 ? { ok: true, note: `${left} min left to restart.` } : { ok: false, note: "The container of this job has been shut down. Start a new job to try again." };
 }
 
 /** The last checkpoint before this one that can still be restarted from, on the same branch. */
@@ -886,7 +886,7 @@ function openMenu(id, x, y) {
         h("div", { class: "s" }, target === cp ? `Starts a new branch from ${cp.id}.` : `Cannot restart from ${cp.id}. Use ${target.id}.`),
         h("label", { class: "s", for: "ws-menu-reason" }, "Rule for the new branch"),
         h("div", { class: "ws-menu-rule" }, dim, reason),
-        h("div", { class: "s" }, "The worker is told it. ", h("button", { class: "link", type: "button", onclick: () => { closeMenu(); openFile(".candor/charter.md"); } }, "See the charter")),
+        h("div", { class: "s" }, h("button", { class: "link", type: "button", onclick: () => { closeMenu(); openFile(".candor/charter.md"); } }, "See the charter")),
         go, win.note ? h("div", { class: "s" }, win.note) : null),
     );
   } else parts.push(h("div", { class: "ws-menu-form" }, h("div", { class: "s" }, !win.ok ? win.note : `Cannot restart from ${cp.id} or any earlier checkpoint on branch ${cp.branch}.`)));

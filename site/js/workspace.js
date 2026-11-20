@@ -175,9 +175,9 @@ const WORKER_LABEL = {
   scripted: "scripted: no model is called",
 };
 const DRAFTED = {
-  model: "Claude wrote the draft. Check each part on the right and change what is wrong. The job runs this charter.",
-  defaults: "This is the default charter of the demo. Change what you like on the right. The job runs this charter.",
-  "defaults-after-error": "Claude could not draft a charter just now, so this is the default charter of the demo. Change what you like on the right, or draft again.",
+  model: "Claude wrote it. Check it on the right.",
+  defaults: "The default charter. Change it on the right.",
+  "defaults-after-error": "Claude could not draft one, so this is the default charter. Draft again or change it on the right.",
 };
 /** The checks that run the code. Only Claude Code has them. */
 const RUNS_CODE = new Set(["tests-pass", "legacy-loads"]);
@@ -380,16 +380,16 @@ function drawStream() {
   if (!j) {
     if (!state.draft) {
       put(el, 
-        h("div", { class: "ws-empty" }, h("h1", {}, "Describe the job"), h("p", {}, "Say what you want done to the invoices project below. Candor drafts a charter: what the job must achieve, the rules it is judged by, what it may touch, and what waits for you. You check it on the right, and the job starts when you approve it."), h("p", { class: "note" }, "The job runs a real worker on the files of the project. Candor checks every action before it runs, takes a checkpoint at the end of each stage, and has a separate watcher score it.")),
+        h("div", { class: "ws-empty" }, h("h1", {}, "Describe the job"), h("p", {}, "Candor drafts a charter for it. You approve it, then the job runs.")),
       );
     } else {
-      put(el, h("div", { class: "ws-col" }, h("div", { class: "ws-user" }, h("div", {}, state.goalAsked)), h("div", { class: "ws-card accent" }, h("b", {}, "Candor drafted a charter from your request and the files of the project."), h("div", {}, DRAFTED[state.draft.drafted_by] ?? DRAFTED.defaults), state.draft.input.note ? h("div", { class: "s" }, state.draft.input.note) : null)));
+      put(el, h("div", { class: "ws-col" }, h("div", { class: "ws-user" }, h("div", {}, state.goalAsked)), h("div", { class: "ws-card accent" }, h("b", {}, "Charter drafted. "), h("div", {}, DRAFTED[state.draft.drafted_by] ?? DRAFTED.defaults), state.draft.input.note ? h("div", { class: "s" }, state.draft.input.note) : null)));
     }
     return;
   }
   const col = h("div", { class: "ws-col" });
   put(col, h("div", { class: "ws-user" }, h("div", {}, charterNow().goal)));
-  if (j.status === "starting") put(col, h("div", { class: "ws-card accent" }, h("b", {}, "Starting Claude Code. "), "Candor is starting a container of its own for this job, with Claude Code, Candor and the project in it. This takes up to a minute."));
+  if (j.status === "starting") put(col, h("div", { class: "ws-card accent" }, h("b", {}, "Starting Claude Code. "), "This takes up to a minute."));
   const stages = new Map(charterNow().stages.map((s) => [s.id, s]));
   // After a restart, the earlier branches fold away, so the stream shows the branch that runs now.
   const older = h("div", {});
@@ -463,7 +463,7 @@ function drawComposer() {
   const j = state.job;
   if (j) {
     const active = j.status === "running" || j.status === "held" || j.status === "paused";
-    put(el, h("div", { class: "ws-hint", style: "display:flex;gap:10px;align-items:center" }, h("span", {}, active ? "The job runs on its own. Candor stops it only when it needs a decision from you." : "This job has ended. Start a new one to try other rules."), h("span", { class: "grow", style: "flex:1" }), active ? h("button", { class: "btn", type: "button", onclick: () => act({ kind: "stop" }) }, "Stop the job") : h("button", { class: "btn", type: "button", onclick: () => (location.href = "workspace.html") }, "New job")));
+    put(el, h("div", { class: "ws-hint", style: "display:flex;gap:10px;align-items:center" }, h("span", { class: "grow", style: "flex:1" }), active ? h("button", { class: "btn", type: "button", onclick: () => act({ kind: "stop" }) }, "Stop the job") : h("button", { class: "btn", type: "button", onclick: () => (location.href = "workspace.html") }, "New job")));
     return;
   }
   const text = h("textarea", { "aria-label": "Describe the job", rows: 2, placeholder: SUGGESTED });
@@ -474,7 +474,7 @@ function drawComposer() {
     draftCharter(typed || SUGGESTED, !typed || typed === SUGGESTED);
   };
   const go = h("button", { class: "btn primary", type: "button", disabled: state.busy ? true : null, onclick: draftNow }, state.busy ? "Drafting…" : state.draft ? "Draft again" : "Draft the charter");
-  put(el, h("div", { class: "ws-box" }, text, h("div", { class: "row" }, workerPicker(), h("span", { style: "flex:1" }), go)), h("div", { class: "ws-hint" }, "Nothing runs until you approve."));
+  put(el, h("div", { class: "ws-box" }, text, h("div", { class: "row" }, workerPicker(), h("span", { style: "flex:1" }), go)));
 }
 
 /** The worker, picked the way a model is picked in the Claude app. The other two are there if one does not work. */
@@ -554,7 +554,7 @@ function select(id) {
 
 function drawPane() {
   const el = clear($("pane"));
-  if (!state.job) return state.draft ? charterEditor(el) : put(el, h("p", { class: "note" }, "Describe the job in the middle. Candor drafts a charter here for you to check and approve."));
+  if (!state.job) return state.draft ? charterEditor(el) : put(el, h("p", { class: "note" }, "Your charter appears here."));
   ({ run: paneRun, rules: paneRules, ledger: paneLedger, receipt: paneReceipt })[state.tab](el);
 }
 
@@ -641,7 +641,7 @@ function charterEditor(el) {
     set((i) => (i.hold = [...new Set([...(i.hold ?? []), value])]));
   };
   const holdAdd = h("div", { class: "ws-pairs", style: "margin-top:6px" }, holdKind, holdWhat);
-  const holdNote = h("p", { class: "note" }, "A path can use * and **, such as src/** for everything under src/. With Claude Code, Candor holds shell commands, so a deletion becomes rm and git rm, and a held write is not enforced.");
+  const holdNote = h("p", { class: "note" }, "Paths can use * and **.");
   const FAULTS = [
     ["", "No planted fault"],
     ["change-test", "Change a test so it passes"],
@@ -651,18 +651,17 @@ function charterEditor(el) {
   const fault = h("select", {}, FAULTS.map(([v, t]) => h("option", { value: v, selected: state.fault === v ? true : null }, t)));
   fault.addEventListener("change", () => (state.fault = fault.value));
   put(el, 
-    h("p", { style: "margin:0 0 12px" }, h("b", {}, "Check your charter. "), "The job is checked against this. Change what is wrong, then approve."),
+    h("p", { style: "margin:0 0 12px" }, h("b", {}, "Check your charter, then approve it.")),
     sec(1, "Goal", "What the job is for.", goal),
     sec(2, "Done when", "Must be true at the end.", ...crit, off.length ? h("p", { class: "note" }, `Turned off: ${off.join(", ")}. `, h("button", { class: "link", type: "button", onclick: () => set((i) => (i.checks = {})) }, "Turn all back on")) : null, h("label", {}, "Add a check: no file under these paths contains this text", h("div", { class: "ws-pairs" }, customPaths, customText)), h("button", { class: "btn", type: "button", style: "margin-top:6px", onclick: () => customText.value.trim() && set((i) => (i.custom_checks = [...(i.custom_checks ?? []), { paths: (customPaths.value || "src/**").split(",").map((x) => x.trim()), text: customText.value.trim() }])) }, "Add check"), h("h4", { class: "ws-sub" }, "Add a success criterion of your own"), h("p", { class: "note", style: "margin:0 0 6px" }, "In your own words. No check can test it, so the watcher scores every checkpoint against it, and the receipt lists it as not verified."), ...ownCriteria, h("div", { class: "ws-pairs", style: "grid-template-columns:1fr auto" }, ownField, h("button", { class: "btn", type: "button", onclick: addOwn }, "Add criterion")), ownMsg),
     sec(3, "Rules the watcher scores against", "One sentence per rule.", ...rules, h("button", { class: "link", type: "button", style: "margin-top:8px", onclick: () => set((i) => (i.rules = [...(i.rules ?? []), { dimension: "scope", text: "" }])) }, "+ Add a rule")),
-    sec(4, "Scope", "Candor checks every write and delete against these before it happens.", list("allow", "May change"), list("deny", "May never change")),
-    sec(5, "Needs your approval", "These wait for you. A checkpoint is taken first, so the files can be restored.", ...holds, ...ownRows, h("label", {}, "Add something that waits for you", holdAdd), h("button", { class: "btn", type: "button", style: "margin-top:6px", onclick: addHold }, "Add"), holdNote),
+    sec(4, "Scope", "Checked before every write and delete.", list("allow", "May change"), list("deny", "May never change")),
+    sec(5, "Needs your approval", null, ...holds, ...ownRows, h("label", {}, "Add something that waits for you", holdAdd), h("button", { class: "btn", type: "button", style: "margin-top:6px", onclick: addHold }, "Add"), holdNote),
     sec(6, "Limits", "Drift: 0 on course, 1 off course.", h("div", { class: "ws-pairs" }, num("warn", "Warn at drift", "0.05"), num("pause", "Pause at drift", "0.05"), num("max_turns", "Worker turns at most", "5"), num("max_cost_usd", "Budget, US dollars", "0.1"))),
     sec(7, "Test Candor (optional)", "Plant one fault for Candor to catch. The receipt shows it was planted.", h("label", { style: "display:flex;gap:10px;align-items:center" }, "Fault", fault)),
     state.review.length ? h("section", { class: "ws-sec" }, h("h3", {}, "Candor's review of this charter"), h("ul", { class: "ws-flags" }, state.review.map((r) => h("li", {}, r.message))), h("p", { class: "note" }, "Approving accepts these.")) : null,
     state.error ? h("p", { class: "ws-no" }, state.error) : null,
     h("button", { class: "btn primary ws-start", type: "button", disabled: state.busy ? true : null, onclick: approve }, state.busy ? "Starting…" : "Approve the charter and start"),
-    h("p", { class: "note" }, "Approving starts the job."),
   );
 }
 
@@ -689,7 +688,7 @@ function paneRun(el) {
     h("span", {}, h("span", { class: "ws-key round" }), "Can restart here"),
     h("span", {}, h("span", { class: "ws-key square" }), "Cannot restart here"),
   );
-  put(el, h("h3", { style: "margin:0 0 6px" }, "Run map"), legend, wrap, h("p", { class: "note" }, "The number in each checkpoint is its drift: the highest of its goal, scope, plan and evidence scores. Click a checkpoint for why. Right-click it to restart from there."));
+  put(el, h("h3", { style: "margin:0 0 6px" }, "Run map"), legend, wrap, h("p", { class: "note" }, "Click a checkpoint to see its score. Right-click to restart."));
   if (m.checkpoints.length)
     requestAnimationFrame(() => {
       renderMap(mapBox, m, { thresholds: t, selected: state.selected, suggestion: null, onSelect: select, onMenu: (id, x, y) => openMenu(id, x, y), stageTitle: (cp) => (cp.trigger === "restart" ? TRIGGER_TITLES.restart : (m.stageOf(cp.stage)?.title ?? TRIGGER_TITLES[cp.trigger] ?? cp.trigger)), noteSent: (cp) => j.entries.some((e) => e.type === "check_result" && e.body.check === "watcher_note" && e.body.checkpoint === cp.id) });
@@ -800,7 +799,7 @@ function paneRules(el) {
 async function paneLedger(el) {
   const j = state.job;
   const box = h("p", {}, "Checking the chain…");
-  put(el, h("p", { class: "note" }, "Every event, in order. Same format as a local Candor run."), box);
+  put(el, box);
   const rows = j.entries.filter((e) => e.type !== "anchor" && !(e.type === "check_result" && e.body.check === "budget"));
   // Who wrote each entry, in plain words. The daemon sets this field, never the caller.
   const BY = { operator: "you", candord: "Candor", worker: "worker", watcher: "watcher" };
@@ -837,7 +836,7 @@ async function paneReceipt(el) {
   put(el, h("h3", {}, "What this job did not check"), h("ul", { class: "plain" }, r.coverage.map((c) => h("li", {}, c))));
   const sig = h("p", {}, "Checking the signature…");
   put(el, h("h3", {}, "Check it"), sig, h("div", { class: "ws-form" }, h("button", { class: "btn primary", type: "button", onclick: () => downloadBundle(j) }, "Download the record (.tar)"), h("button", { class: "btn", type: "button", onclick: () => download(`${j.id}-receipt.json`, JSON.stringify(r, null, 1), "application/json") }, "Download the receipt only")));
-  put(el, h("pre", { class: "cmd", style: "margin-top:8px" }, `tar -xf ${j.id}.tar\ncandor verify receipt.json --key-id ${r.signature?.key_id ?? "<key id>"}`), h("p", { class: "note" }, "The record has the same format as a local Candor run, so the command-line tool checks it. The signing key was made for this job."));
+  put(el, h("pre", { class: "cmd", style: "margin-top:8px" }, `tar -xf ${j.id}.tar\ncandor verify receipt.json --key-id ${r.signature?.key_id ?? "<key id>"}`));
   const s = await verifyReceiptSignature(r);
   clear(sig).append(h("span", { class: `state ${s.ok ? "ok" : "bad"}` }, s.ok ? `Signature valid, key ${s.keyId.slice(0, 19)}…, checked in your browser.` : s.reason));
 }
@@ -875,13 +874,12 @@ function openMenu(id, x, y) {
     // The restart needs a rule, so the button waits until there is one.
     reason.addEventListener("input", () => (go.disabled = state.busy || reason.value.trim().length < 5));
     reason.addEventListener("keydown", (e) => e.key === "Enter" && !go.disabled && go.click());
-    const rulesNow = charterNow()?.drift_rules.length ?? 0;
     parts.push(
       h("div", { class: "ws-menu-form" },
-        h("div", { class: "s" }, target === cp ? `Starts a new branch from the files of ${cp.id}. The first branch stays in the record.` : `Cannot restart from ${cp.id}. Use ${target.id}.`),
+        h("div", { class: "s" }, target === cp ? `Starts a new branch from ${cp.id}.` : `Cannot restart from ${cp.id}. Use ${target.id}.`),
         h("label", { class: "s", for: "ws-menu-reason" }, "Rule for the new branch"),
         h("div", { class: "ws-menu-rule" }, dim, reason),
-        h("div", { class: "s" }, `The worker is told it, and the watcher scores against it, with the ${rulesNow} rule${rulesNow === 1 ? "" : "s"} already in the charter. `, h("button", { class: "link", type: "button", onclick: () => { closeMenu(); openFile(".candor/charter.md"); } }, "See the charter")),
+        h("div", { class: "s" }, "The worker is told it. ", h("button", { class: "link", type: "button", onclick: () => { closeMenu(); openFile(".candor/charter.md"); } }, "See the charter")),
         go, win.note ? h("div", { class: "s" }, win.note) : null),
     );
   } else parts.push(h("div", { class: "ws-menu-form" }, h("div", { class: "s" }, !win.ok ? win.note : `Cannot restart from ${cp.id} or any earlier checkpoint on branch ${cp.branch}.`)));

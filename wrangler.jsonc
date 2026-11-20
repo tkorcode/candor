@@ -21,7 +21,7 @@
     { "tag": "v2", "new_sqlite_classes": ["CandorContainer"] }
   ],
   // The image builds Candor from source, so it needs no build step before the deploy. At most five jobs at once.
-  "containers": [{ "class_name": "CandorContainer", "image": "./container/Dockerfile", "image_build_context": ".", "max_instances": 5, "instance_type": "standard-1" }],
+  "containers": [{ "class_name": "CandorContainer", "image": "./container/Dockerfile", "image_build_context": ".", "max_instances": 20, "instance_type": "standard-1" }],
   // Spending limits and the cache of the live watcher.
   "kv_namespaces": [{ "binding": "CANDOR_KV", "id": "557a9e4ac93f4f9786155cf5ec9c2f8b" }],
   "vars": {

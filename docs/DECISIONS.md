@@ -27,12 +27,12 @@ Why: A reader who changed the charter and saw a different one run would stop tru
 Alternatives considered: Translating the charter only when the job starts, which hid the differences until it was too late to change them.
 What it costs or leaves open: A held write cannot be enforced in Claude Code until Candor holds file writes as it holds shell commands.
 
-## D-097: A job that ended can be restarted for ten minutes
+## D-097: A job that ended can be restarted for fifteen minutes
 Date: 2026-11-19
-Decision: When a Claude Code job ends, its container is kept for ten minutes, and the reader can restart from any checkpoint in that time, from the map or by right-clicking a checkpoint. Then the container is removed. A restart after the end resets the status and the receipt, and the new branch keeps the old one in the record.
+Decision: When a Claude Code job ends, its container is kept for fifteen minutes, and the reader can restart from any checkpoint in that time, from the map or by right-clicking a checkpoint. Then the container is removed. A restart after the end resets the status and the receipt, and the new branch keeps the old one in the record.
 Why: The best time to try a restart is after reading the receipt, which is only there once the job ends.
 Alternatives considered: Removing the container at once, which made restart do nothing after the end. Keeping it for an hour, which costs a container for each idle job.
-What it costs or leaves open: After ten minutes the job can be read and downloaded but not restarted.
+What it costs or leaves open: After fifteen minutes the job can be read and downloaded but not restarted.
 
 ## D-096: A reader plants a named fault instead of cutting a corner
 Date: 2026-11-19

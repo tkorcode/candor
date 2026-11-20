@@ -11,7 +11,7 @@ import { buildWorkerSettings } from "../core/run/settings.js";
 import { checkClaudeCodeVersion, installedClaudeCodeVersion } from "../core/version.js";
 import { callDaemon } from "../daemon/client.js";
 import { ensureDaemon } from "./daemonctl.js";
-import { driveWorker, seededInstruction, shareSettings, waitForDaemon, workerPrompt } from "./run.js";
+import { driveWorker, seededInstruction, shareSettings, toldRules, waitForDaemon, workerPrompt } from "./run.js";
 
 export const RESTART_USAGE = `  candor restart <checkpoint> --reason "<text>" [--run <id>] [--dimension goal|scope|plan|evidence]
                                     [--model <id>] [--max-usd <n>] [--wait-approval <minutes>] [--no-worker]
@@ -92,7 +92,7 @@ export async function restartCommand(home: string, args: string[]): Promise<numb
     const workerSettings = shareSettings(settingsFile);
 
     const model = option(args, "--model") ?? process.env.CANDOR_WORKER_MODEL ?? "claude-sonnet-5-5";
-    const rules = charter.drift_rules.filter((x) => x.source !== "generated").map((x) => x.text);
+    const rules = toldRules(charter);
     const common = {
       home,
       run,

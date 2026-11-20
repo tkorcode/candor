@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { checkSignature } from "../core/report/sign.js";
 import { HostedLedger } from "../hosted/ledger.js";
 import { jobSigner } from "../hosted/sign.js";
-import { type Box, createCcJob, finishCc, pollCc, startCc, takeLines, viewCc } from "./cc-job.js";
+import { actCc, type Box, createCcJob, finishCc, pollCc, RESTART_WINDOW_MS, startCc, takeLines, viewCc } from "./cc-job.js";
 
 const RUN = "r_0123456789abcdef";
 
@@ -79,5 +79,28 @@ describe("a Claude Code job in the workspace", () => {
     expect(job.status).toBe("done");
     expect(checkSignature(job.receipt as Record<string, unknown>).ok).toBe(true);
     expect((job.receipt as { signed_by: string }).signed_by).toMatch(/job object/);
+  });
+
+  it("takes a restart after the job ended, until its container is shut down, and nothing else", async () => {
+    const job = createCcJob(RUN, {}, "claude-sonnet-5-5");
+    const sent: unknown[] = [];
+    const box: Box = {
+      fetch: async (_p, init) => {
+        sent.push(init?.body);
+        return { status: 200, body: { restarted: "A1" } };
+      },
+      destroy: async () => undefined,
+    };
+    job.phase = "ended";
+    job.status = "done";
+    job.receipt = { verdicts: {} };
+    job.endedAt = 1_000_000;
+    await expect(actCc(job, box, { kind: "rule", text: "x" }, 1_000_001)).rejects.toThrow(/restart it from a checkpoint/);
+    await expect(actCc(job, box, { kind: "restart", from: "A1", reason: "Again." }, 1_000_000 + RESTART_WINDOW_MS + 1)).rejects.toThrow(/shut down/);
+    await actCc(job, box, { kind: "restart", from: "A1", reason: "Again." }, 1_000_000 + 60_000);
+    expect(sent).toHaveLength(1);
+    expect(job.phase).toBe("running");
+    expect(job.receipt).toBeNull();
+    expect(viewCc(job).restartableUntil).toBeNull();
   });
 });

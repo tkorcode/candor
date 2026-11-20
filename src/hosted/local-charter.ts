@@ -18,15 +18,19 @@ export const RUNNING_CHECKS = [
 
 export const ALLOW_COMMANDS = ["node *", "npm test", "ls *", "ls", "cat *", "head *", "head", "tail *", "tail", "wc *", "wc", "sort *", "sort", "uniq *", "uniq", "grep *", "rg *", "diff *", "find *", "rm *", "git rm *", "git diff*", "git status*", "mkdir *"];
 
-export function localCharter(hosted: Charter): { charter: Charter; dropped: string[] } {
+/** The budget of a Claude Code job when the reader sets none: it does more work per turn than the API worker. */
+export const CLAUDE_CODE_BUDGET_USD = 3;
+
+export function localCharter(hosted: Charter, input: { checks?: Record<string, boolean> } = {}): { charter: Charter; dropped: string[] } {
   const dropped: string[] = [];
+  const runningOn = RUNNING_CHECKS.filter((c) => input.checks?.[c.id] !== false);
   const checks = hosted.checks.map((c) => (c.type === "command" && c.run?.startsWith("hosted:") ? { ...c, run: `${CHECK_CLI} run ${c.id}`, fault: `${CHECK_CLI} fault ${c.id}` } : c));
-  const running = RUNNING_CHECKS.map((c) => ({ id: c.id, type: "command" as const, run: c.run, when: "checkpoint" as const, fault: `${CHECK_CLI} fault ${c.id}` }));
+  const running = runningOn.map((c) => ({ id: c.id, type: "command" as const, run: c.run, when: "checkpoint" as const, fault: `${CHECK_CLI} fault ${c.id}` }));
   const success = [
-    ...hosted.success.filter((s) => s.check !== null || !/behaviour/i.test(s.text)),
-    ...RUNNING_CHECKS.map((c, i) => ({ id: `s-run-${i + 1}`, text: c.text, check: c.id })),
+    ...hosted.success.filter((s) => s.id !== "s6"),
+    ...RUNNING_CHECKS.map((c, i) => ({ id: `s-run-${i + 1}`, text: c.text, check: runningOn.includes(c) ? c.id : null })),
   ];
-  const stages = hosted.stages.map((s, i) => (s.id === "switch" || i === hosted.stages.length - 1 ? { ...s, exit_checks: [...s.exit_checks, ...RUNNING_CHECKS.map((c) => c.id)] } : s));
+  const stages = hosted.stages.map((s, i) => (s.id === "switch" || i === hosted.stages.length - 1 ? { ...s, exit_checks: [...s.exit_checks, ...runningOn.map((c) => c.id)] } : s));
   const irreversible: string[] = [];
   for (const pattern of hosted.irreversible) {
     const m = /^delete_file\s+(.*)$/.exec(pattern.trim());
@@ -45,8 +49,8 @@ export function localCharter(hosted: Charter): { charter: Charter; dropped: stri
   return { charter, dropped };
 }
 
-export function localCharterYaml(hosted: Charter): string {
-  return stringify(localCharter(hosted).charter);
+export function localCharterYaml(hosted: Charter, input: { checks?: Record<string, boolean> } = {}): string {
+  return stringify(localCharter(hosted, input).charter);
 }
 
 /** The task `candor run` gives Claude Code: the job, and the file each stage report goes in. */

@@ -13,6 +13,27 @@ Alternatives considered:
 What it costs or leaves open:
 ```
 
+## D-099: The worker is told the rules a person set, and a reader can add points of their own
+Date: 2026-11-19
+Decision: `candor run` gives Claude Code the rules a person set or approved from the start of the job, as a restart already did (`toldRules` in `src/cli/run.ts`). Rules drafted from the charter itself are still only scored. On the workspace a reader can add a point in their own words. No check can test it, so the receipt lists it as not claimed, and it becomes a goal rule the watcher scores at every checkpoint. The draft model writes such points from what the reader typed.
+Why: A worker scored against rules it was never told is set up to drift, and a reader whose requirement had no check had no way to put it in the charter at all.
+Alternatives considered: Keeping the rules from the worker so drift is measured blind, which only measures whether the worker guesses them. Dropping a requirement no check can test, which hides it.
+What it costs or leaves open: A point is scored by the watcher, which is evidence, not a verified result. A rule added while the job runs reaches the worker when it resumes after a pause, not at once.
+
+## D-098: The charter a reader approves is the charter the job runs
+Date: 2026-11-19
+Decision: The draft and review of a charter take the chosen worker, so the reader edits the charter as that worker will run it. For Claude Code the review shows the two checks that run the code, a held deletion as `rm` and `git rm`, and a held write marked as not enforced, since a write has no shell form. A check the reader turns off stays off, and the budget the reader sets is the budget of the job. With no budget set, a Claude Code job gets 3 dollars. A reader can start from the default charter without asking the model, and a draft that failed says so.
+Why: A reader who changed the charter and saw a different one run would stop trusting every other part of the page.
+Alternatives considered: Translating the charter only when the job starts, which hid the differences until it was too late to change them.
+What it costs or leaves open: A held write cannot be enforced in Claude Code until Candor holds file writes as it holds shell commands.
+
+## D-097: A job that ended can be restarted for ten minutes
+Date: 2026-11-19
+Decision: When a Claude Code job ends, its container is kept for ten minutes, and the reader can restart from any checkpoint in that time, from the map or by right-clicking a checkpoint. Then the container is removed. A restart after the end resets the status and the receipt, and the new branch keeps the old one in the record.
+Why: The best time to try a restart is after reading the receipt, which is only there once the job ends.
+Alternatives considered: Removing the container at once, which made restart do nothing after the end. Keeping it for an hour, which costs a container for each idle job.
+What it costs or leaves open: After ten minutes the job can be read and downloaded but not restarted.
+
 ## D-096: A reader plants a named fault instead of cutting a corner
 Date: 2026-11-19
 Decision: The switch that told the worker to cut a corner is replaced by three named faults: change a test so it passes, edit a protected file, and claim more than was done (`src/hosted/named-faults.ts`). Each adds one instruction to the worker. It is written in the record before the worker starts, as a `config_change` entry with `source: seeded_fault`, in the API worker and in Claude Code, where `candor run` takes it from `CANDOR_SEEDED_FAULT` and the daemon records it through `/harness/seed`. Each fault names what should catch it.

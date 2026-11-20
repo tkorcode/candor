@@ -27,11 +27,14 @@ async function body<T>(request: Request): Promise<T> {
 export async function charterRoute(request: Request, path: string, config: HostConfig): Promise<Response | null> {
   try {
     if (request.method === "POST" && path === "/api/charter/draft") {
-      const { goal } = await body<{ goal?: string }>(request);
+      const { goal, worker, plain } = await body<{ goal?: string; worker?: string; plain?: boolean }>(request);
       if (typeof goal !== "string" || goal.trim().length < 5) return json(400, { error: "Describe what the job should do, in a sentence." });
-      return json(200, await draft(goal, config));
+      return json(200, await draft(goal, config, { worker, plain: plain === true }));
     }
-    if (request.method === "POST" && path === "/api/charter/review") return json(200, review((await body<{ input?: CharterInput }>(request)).input ?? {}));
+    if (request.method === "POST" && path === "/api/charter/review") {
+      const { input, worker } = await body<{ input?: CharterInput; worker?: string }>(request);
+      return json(200, review(input ?? {}, worker));
+    }
   } catch (error) {
     return json(400, { error: (error as Error).message });
   }

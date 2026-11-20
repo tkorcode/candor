@@ -129,3 +129,47 @@ body.ws { overflow: hidden; }
 .ws-candor .dim-q { font-size: 12px; }
 .dim-rules { margin: 4px 0 0; padding-left: 18px; }
 .dim-rules li { margin: 2px 0; }
+.ws-menu-form { display: grid; gap: 8px; padding: 6px 8px 10px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+.ws-menu-form .s { font-size: 12.5px; color: var(--muted); }
+.ws-menu-form input { width: 100%; }
+.ws-menu { min-width: 300px; max-width: 320px; }
+/* The worker picker, like the model picker of the Claude app, and the red alert for a failure. */
+.ws-model { border: 1px solid var(--line); border-radius: 999px; padding: 5px 10px; background: var(--soft); color: var(--fg); font: inherit; font-size: 13px; max-width: 100%; }
+.ws-alert { margin: 10px 28px 0; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--pause-mark); background: var(--pause-bg); color: var(--fg); display: grid; gap: 10px; font-size: 14px; }
+.ws-alert .acts { display: flex; flex-wrap: wrap; gap: 8px; }
+/* The drift calculation of a checkpoint. */
+.ws-drift { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: grid; gap: 10px; margin: 6px 0 12px; background: var(--surface); }
+.ws-drift-eq { font-size: 14px; line-height: 1.5; }
+.ws-drift-eq .big { font: 600 22px var(--mono); margin-right: 2px; }
+.ws-drift-eq .hit { font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+.ws-drift-scale { position: relative; display: flex; height: 22px; border-radius: 6px; overflow: hidden; font-size: 11px; }
+.ws-drift-scale .seg { display: flex; align-items: center; padding: 0 6px; white-space: nowrap; overflow: hidden; color: var(--fg); }
+.ws-drift-scale .seg.ok { background: var(--ok-bg, var(--soft)); }
+.ws-drift-scale .seg.warn { background: var(--warn-bg); }
+.ws-drift-scale .seg.pause { background: var(--pause-bg); }
+.ws-drift-scale .pin { position: absolute; top: -2px; bottom: -2px; width: 3px; margin-left: -1px; background: var(--fg); border-radius: 2px; }
+.ws-drift .s { font-size: 13px; color: var(--muted); }
+.ws-how summary { cursor: pointer; font-size: 13px; color: var(--fg); }
+.ws-how ul { margin: 6px 0 0; padding-left: 18px; font-size: 13px; color: var(--muted); display: grid; gap: 4px; }
+.ws-box .ws-model { width: auto; flex: 0 1 auto; }
+
+/* The projects in the left pane, and the page of one project. */
+.ws-projects { list-style: none; margin: 0; padding: 0 8px 6px; border-bottom: 1px solid var(--line); }
+.ws-projects li button { width: 100%; display: grid; grid-template-columns: 1fr auto; gap: 0 6px; background: none; border: 0; border-radius: 8px; padding: 6px 8px; color: var(--fg); text-align: left; }
+.ws-projects li button:hover, .ws-projects li button[aria-current="true"] { background: var(--line); }
+.ws-projects .n { font-weight: 600; font-size: 13.5px; }
+.ws-projects .k { grid-column: 1 / span 2; grid-row: 2; color: var(--muted); font-size: 12px; }
+.ws-projects .chip { grid-column: 2; grid-row: 1; align-self: center; font-size: 11px; padding: 1px 8px; }
+.ws-tree-head { color: var(--muted); font-size: 12px; font-weight: 600; padding: 10px 16px 0; }
+.ws-page { max-width: 820px; }
+.ws-page .lead { font-size: 15px; margin: 4px 0 8px; }
+.ws-page-status { color: var(--muted); margin: 0 0 12px; }
+.ws-page h3 { font-size: 14px; margin: 22px 0 8px; }
+.ws-tests { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; }
+.ws-tests dt { font-weight: 600; }
+.ws-tests dd { margin: 0; color: var(--fg); }
+.ws-sample { margin: 0 0 14px; }
+.ws-sample figcaption { font-size: 13px; margin-bottom: 4px; display: flex; gap: 10px; flex-wrap: wrap; }
+.ws-sample figcaption .f { color: var(--muted); font-family: var(--mono); font-size: 12px; }
+@media (max-width: 640px) { .ws-tests { grid-template-columns: 1fr; } .ws-tests dd { margin-bottom: 6px; } }
+.ws-kind { color: var(--muted); font-size: 13px; }

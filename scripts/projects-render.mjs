@@ -24,7 +24,7 @@ const files = (pairs) => Object.fromEntries(pairs.map(([path, from]) => [path, {
 
 const projects = [
   {
-    id: "invoices", name: "ES modules migration", kind: "A small Node service, CommonJS to ES modules", status: "here",
+    id: "invoices", name: "Small code migration", kind: "A small Node.js service, moved to the newer JavaScript module system", status: "here",
     status_text: "Try it here. Claude Code does the work in a container of its own. Claude through the API and a scripted worker are there as fallbacks.",
     summary: "A small invoicing service in CommonJS, eight source files and two test files. The job moves it to ES modules. A retired report under legacy/ must stay as it is, and the old entry point is removed only with your approval.",
     tests: [

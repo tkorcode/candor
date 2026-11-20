@@ -8,6 +8,9 @@ import { renderMap } from "./map.js";
 import { buildModel, DIMENSIONS, describe, latestOverall, levelFor, suggestRestart } from "./model.js";
 import { verifyAnchors, verifyBlobs, verifyChain, verifyReceiptHead, verifyReceiptSignature } from "./verify.js";
 
+// The workspace is where a visitor starts. The bare address goes there; the recorded runs open with ?runs, or with a run in the hash.
+if (!location.search && !location.hash) location.replace("workspace.html");
+
 const state = {
   runs: [],
   run: null,

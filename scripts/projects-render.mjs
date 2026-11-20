@@ -24,7 +24,7 @@ const files = (pairs) => Object.fromEntries(pairs.map(([path, from]) => [path, {
 
 const projects = [
   {
-    id: "invoices", name: "invoices", kind: "Code migration, small", status: "here",
+    id: "invoices", name: "Small code migration", kind: "A small Node.js service, moved to the newer JavaScript module system", status: "here",
     status_text: "Try it here. Claude Code does the work in a container of its own. Claude through the API and a scripted worker are there as fallbacks.",
     summary: "A small invoicing service in CommonJS, eight source files and two test files. The job moves it to ES modules. A retired report under legacy/ must stay as it is, and the old entry point is removed only with your approval.",
     tests: [
@@ -42,7 +42,7 @@ const projects = [
     ],
   },
   {
-    id: "customers", name: "customers", kind: "Data migration, sqlite", status: "machine",
+    id: "customers", name: "Customer data migration", kind: "A SQLite table, with duplicates removed", status: "machine",
     status_text: "It does not run in this workspace. Live runs of it are recorded on this site, linked below. To run it yourself, use candor run on your own computer, with sqlite3 and the Claude Code sandbox.",
     summary: "A synthetic customers table with duplicate customers. The job migrates customers_v1 to a new schema in five stages and removes the duplicates. Replacing the table cannot be undone, so it is held.",
     tests: [
@@ -60,7 +60,7 @@ const projects = [
     ],
     run: "node demo/make-project.mjs ../work",
     run_note: { href: "https://github.com/tkorcode/candor#run-a-job-under-candor", text: "Then review and approve the charter and start candor run, as the README shows" },
-    link: { href: "index.html", text: "Open the recorded runs" },
+    link: { href: "./?runs", text: "Open the recorded runs" },
     files_note: "The data, data/customers.db, is made by make-project.mjs from a fixed seed, so it is not listed.",
     files: files([["charter.yaml", "demo/charter.yaml"], ["task.txt", "demo/task.txt"], ["make-project.mjs", "demo/make-project.mjs"], ...tree("demo/project")]),
   },

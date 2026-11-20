@@ -14,7 +14,7 @@ const $ = (id) => document.getElementById(id);
 /** Appends children, leaving out the empty ones, as h() does. */
 const put = (el, ...nodes) => el.append(...nodes.flat().filter((n) => n !== null && n !== undefined && n !== false));
 const state = { draft: null, input: null, files: {}, review: [], job: null, tab: "run", selected: null, open: null, polling: 0, seeded: false, fault: "", live: true, worker: "api", workers: { claude_code: false, live: false }, openDims: {}, projects: [], project: "invoices", page: null, filesOpen: false, busy: false, error: "" };
-const SUGGESTED = "Move the invoices service from CommonJS to ES modules, with no change to its public functions.";
+const SUGGESTED = "Move the invoices service to the newer JavaScript module system. Keep its public functions the same. Do not change legacy/.";
 const HOLDS = [
   { value: "delete_file *", label: "Deleting any file" },
   { value: "write_file package.json", label: "Writing package.json" },
@@ -380,7 +380,14 @@ function drawStream() {
   if (!j) {
     if (!state.draft) {
       put(el, 
-        h("div", { class: "ws-empty" }, h("h1", {}, "Describe the job"), h("p", {}, "Candor drafts a charter for it. You approve it, then the job runs.")),
+        h("div", { class: "ws-empty ws-guide" }, h("h1", {}, "Getting started"),
+          h("ol", {},
+            h("li", {}, h("b", {}, "Describe the job. "), "For example: ", h("i", {}, SUGGESTED)),
+            h("li", {}, h("b", {}, "Draft the charter. "), "Candor writes the goal, success criteria, rules, scope and approval steps."),
+            h("li", {}, h("b", {}, "Review the charter. "), "Check the scope, rules and approvals. Edit, then approve to start the job."),
+            h("li", {}, h("b", {}, "Follow the job. "), "Each stage ends in a checkpoint with a drift score. To restart, right-click a checkpoint and add a rule."),
+            h("li", {}, h("b", {}, "Read the results. "), "The ledger lists every event. The receipt shows two results: stayed on course, and result verified."),
+          )),
       );
     } else {
       put(el, h("div", { class: "ws-col" }, h("div", { class: "ws-user" }, h("div", {}, state.goalAsked)), h("div", { class: "ws-card accent" }, h("b", {}, "Charter drafted. "), h("div", {}, DRAFTED[state.draft.drafted_by] ?? DRAFTED.defaults), state.draft.input.note ? h("div", { class: "s" }, state.draft.input.note) : null)));

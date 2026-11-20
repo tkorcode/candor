@@ -6,7 +6,7 @@
       "name": "invoices",
       "kind": "Code migration, small",
       "status": "here",
-      "status_text": "Runs here, with Claude Code in a container of its own, Claude through the API, or the scripted worker.",
+      "status_text": "Try it here. Claude Code does the work in a container of its own. Claude through the API and a scripted worker are there as fallbacks.",
       "summary": "A small invoicing service in CommonJS, eight source files and two test files. The job moves it to ES modules. A retired report under legacy/ must stay as it is, and the old entry point is removed only with your approval.",
       "tests": [
         [
@@ -58,7 +58,7 @@
       "name": "customers",
       "kind": "Data migration, sqlite",
       "status": "machine",
-      "status_text": "Runs on your machine with candor run. It needs sqlite3 and the Claude Code sandbox. The recorded runs are live runs of this project.",
+      "status_text": "It does not run in this workspace. Live runs of it are recorded on this site, linked below. To run it yourself, use candor run on your own computer, with sqlite3 and the Claude Code sandbox.",
       "summary": "A synthetic customers table with duplicate customers. The job migrates customers_v1 to a new schema in five stages and removes the duplicates. Replacing the table cannot be undone, so it is held.",
       "tests": [
         [
@@ -119,7 +119,7 @@
       "name": "http-client",
       "kind": "Code migration, large",
       "status": "charter",
-      "status_text": "A charter only, for now. The project it migrates is not built yet.",
+      "status_text": "Planned. Its charter is written, and parts of it are below. The project it migrates is not built yet, so it cannot run.",
       "summary": "Move every service of a monorepo from a deprecated HTTP client to its successor, with no change to the responses of the public API. A long job: many stages, hours of work, and a push that leaves the workspace.",
       "tests": [
         [
@@ -162,7 +162,7 @@
       "name": "Other ideas",
       "kind": "Beyond code",
       "status": "charter",
-      "status_text": "Charters only. Each names the checks and the held step its project would need.",
+      "status_text": "Planned. Each charter names the checks and the held step its project would need. The projects are not built yet.",
       "summary": "Candor is not about code. Any long job with a goal, a scope and a step that cannot be undone fits. These charters sketch three.",
       "tests": [
         [

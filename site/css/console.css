@@ -15,7 +15,8 @@
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
+  /* A page that sets data-theme="light" stays light, such as the workspace. */
+  :root:not([data-theme="light"]) {
     --bg: #1a1a19; --surface: #212120; --soft: #2a2a28; --line: #353532; --fg: #ececea; --muted: #a3a29d;
     --brand: #d9774f;
     --accent: #ececea; --accent-text: #ececea; --accent-soft: #2a2a28;

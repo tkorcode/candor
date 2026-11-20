@@ -8,6 +8,17 @@ Candor is an oversight layer for long Claude Code jobs. It does not do the work.
 
 **See a real run** in the Candor Console at https://candor.tkorcode.workers.dev, with every check of the record made in your browser.
 
+## Start here
+
+| Read or try | What you get |
+|---|---|
+| [Capability prediction](docs/CAPABILITY.md) | The model capability Candor is built on, why it is coming within 12 months, and its limits |
+| [Product proposal](docs/PROPOSAL.md) | Who it is for, why Anthropic, the regulated jobs it applies to, MVP viability and the roadmap |
+| [Run a job yourself](https://candor.tkorcode.workers.dev/workspace.html) | Real Claude Code under Candor from a link, with nothing to install. Approve the charter, decide a held action, add a rule, restart from a checkpoint, plant a fault |
+| [Recorded runs](https://candor.tkorcode.workers.dev) | Live runs and their signed receipts, verified in your browser |
+| [Prototype to MVP](docs/MVP.md) | Architecture, model integration, scaling and tradeoffs for a team running real jobs |
+| [Check a receipt locally](#check-a-recorded-run-yourself) | `candor verify` on a real receipt, then change one byte and watch it fail |
+
 ## Why it matters
 
 Models can now work on one job for hours or days. A job that long is either watched the whole time or trusted blindly, and neither works at scale. The time people have for review sets a ceiling on how much work they can hand to agents.
@@ -36,8 +47,10 @@ The recorded runs show the watcher scoring every checkpoint of real jobs and rai
 | Tool | What it does | What it does not do |
 |---|---|---|
 | Claude Code checkpoints | Restore files and the conversation to an earlier prompt | Assess the run, or keep a record for someone who was not there |
-| Online evaluators such as LangSmith and Arize | Score agent traces with a model | Tie the score to a charter approved before the run, restart with lineage, or end with a signed receipt |
+| Outcomes in Claude Managed Agents | A separate grader scores the finished artifact against a rubric, and the agent revises until it passes | Assess the run while it is under way, keep a record, or restart from a checkpoint with lineage |
+| Online evaluators such as LangSmith and Arize | Score agent traces with a model | Pause the running agent, tie the score to a charter approved before the run, restart with lineage, or end with a signed receipt |
 | Agent governance such as Drata | Check each action against a policy for each agent, and keep an audit record | Tell whether one job is still serving its goal |
+| Tracekit, an open research system | A signer the agent cannot reach allows, denies or holds each tool call and signs a hash-chained record that verifies offline | Score drift per stage against a charter, score history again when a rule changes, or restart with lineage |
 | **Candor** | Scores each stage of one job against its goal, scores history again when a rule changes, restarts with the lesson carried forward, and ends with a receipt that gives two verdicts | Keep an inventory of a fleet of agents, or replace an auditor |
 
 What is new is the combination, in one loop.
@@ -235,7 +248,7 @@ Candor was built with Claude Code from a written specification (`docs/SPEC.md`),
 | `results/runs/` | Recorded live runs, with their ledgers, session streams and receipts |
 | `results/evaluation/` | Evaluation results, from scripted failures and live watcher runs |
 | `scripts/` | Console data, a local server, the dependency licence check, and redaction of recorded runs |
-| `docs/` | Specification, roadmap, decisions, evaluation protocol, coverage, sources, questions and answers |
+| `docs/` | Capability prediction, product proposal, prototype to MVP, specification, roadmap, decisions, evaluation protocol, coverage, sources, questions and answers |
 
 `npm run check` runs the type check, the lint, the licence check of every dependency, and the tests.
 

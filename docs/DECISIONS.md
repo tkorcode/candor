@@ -13,6 +13,13 @@ Alternatives considered:
 What it costs or leaves open:
 ```
 
+## D-097: The sources were checked again, and claims that did not hold were corrected or removed
+Date: 2026-11-19
+Decision: Every source in `docs/SOURCES.md` was opened again. The Anthropic announcement replaces two secondary reports of the Fable 5.2 operating system run. The METR figure is now the one METR and The Decoder state, at least 16 hours at 50%, with the warning that METR cannot measure reliably above that. The figures from Safe to Resume now say what the paper measured: incomplete state coverage in 67.2% of executions, and the double payment as a demonstrated attack, not a rate. The EU AI Act dates now follow the final Digital Omnibus. Sources that could not be confirmed (a G2 survey figure, an 80% time horizon) or added nothing (a list of decision models) were removed. Outcomes in Managed Agents and Tracekit were added to the comparison in the README, as the closest Anthropic feature and the closest design found.
+Why: A reviewer who opens a source and finds a different number stops trusting the rest of the record.
+Alternatives considered: Keeping secondary reports beside the primary one. Where the primary source is reachable, it is the one to cite.
+What it costs or leaves open: Two figures in the capability prediction, the evasion rate and the baseline AUC of the monitoring paper, are confirmed only by a secondary report, and are labelled so. The arXiv page of that paper could not be opened from the checking environment.
+
 ## D-096: A reader plants a named fault instead of cutting a corner
 Date: 2026-11-19
 Decision: The switch that told the worker to cut a corner is replaced by three named faults: change a test so it passes, edit a protected file, and claim more than was done (`src/hosted/named-faults.ts`). Each adds one instruction to the worker. It is written in the record before the worker starts, as a `config_change` entry with `source: seeded_fault`, in the API worker and in Claude Code, where `candor run` takes it from `CANDOR_SEEDED_FAULT` and the daemon records it through `/harness/seed`. Each fault names what should catch it.

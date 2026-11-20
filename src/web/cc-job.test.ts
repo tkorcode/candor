@@ -84,7 +84,13 @@ describe("a Claude Code job in the workspace", () => {
   it("takes a restart after the job ended, until its container is shut down, and nothing else", async () => {
     const job = createCcJob(RUN, {}, "claude-sonnet-5-5");
     const sent: unknown[] = [];
-    const box: Box = { fetch: async (_p, init) => (sent.push(init?.body), { status: 200, body: { restarted: "A1" } }), destroy: async () => undefined };
+    const box: Box = {
+      fetch: async (_p, init) => {
+        sent.push(init?.body);
+        return { status: 200, body: { restarted: "A1" } };
+      },
+      destroy: async () => undefined,
+    };
     job.phase = "ended";
     job.status = "done";
     job.receipt = { verdicts: {} };

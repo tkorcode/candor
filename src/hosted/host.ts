@@ -1,3 +1,4 @@
+import { CLAUDE_CODE_BUDGET_USD, localCharter } from "./local-charter.js";
 import { isFaultName } from "./named-faults.js";
 import type { Transport } from "../watcher/judge.js";
 import { fetchTransport } from "../watcher/judge.js";
@@ -99,14 +100,38 @@ export function start(id: string, input: CharterInput, config: HostConfig, optio
 }
 
 /** A charter drafted from the goal the reader typed, and its review. Scripted when there is no API key. */
-export async function draft(goal: string, config: HostConfig) {
-  const input = config.apiKey ? await draftCharter(goal, config.apiKey, config.watcherModel ?? "claude-sonnet-5-5").catch(() => ({ ...DEFAULTS, goal })) : { ...DEFAULTS, goal };
-  const charter = buildCharter(input);
-  return { input, charter, markdown: charterMarkdown(charter), review: reviewHosted(charter), drafted_by: config.apiKey ? "model" : "defaults", live: live(config), files: ORIGINAL };
+/**
+ * The charter as the chosen worker will run it. For Claude Code that is the local charter: the two checks that run
+ * the code are added, a held deletion becomes rm and git rm, and a held write, which has no shell form, is listed as
+ * not enforced. With no budget set, a Claude Code job gets a larger one.
+ */
+export function charterFor(input: CharterInput, worker?: string) {
+  if (worker !== "claude-code") {
+    const charter = buildCharter(input);
+    return { charter, unenforced: [] as string[] };
+  }
+  const hosted = buildCharter({ ...input, max_cost_usd: input.max_cost_usd ?? CLAUDE_CODE_BUDGET_USD });
+  const local = localCharter(hosted, input);
+  return { charter: local.charter, unenforced: local.dropped };
 }
 
-/** The review of a charter the reader edited, before it is approved. */
-export function review(input: CharterInput) {
-  const charter = buildCharter(input);
-  return { input, charter, markdown: charterMarkdown(charter), review: reviewHosted(charter), files: ORIGINAL };
+export async function draft(goal: string, config: HostConfig, options: { worker?: string; plain?: boolean } = {}) {
+  let input: CharterInput = { ...DEFAULTS, goal };
+  let drafted_by = "defaults";
+  if (config.apiKey && !options.plain) {
+    try {
+      input = await draftCharter(goal, config.apiKey, config.watcherModel ?? "claude-sonnet-5-5");
+      drafted_by = "model";
+    } catch {
+      drafted_by = "defaults-after-error";
+    }
+  }
+  const { charter, unenforced } = charterFor(input, options.worker);
+  return { input, charter, unenforced, markdown: charterMarkdown(charter), review: reviewHosted(charter), drafted_by, live: live(config), files: ORIGINAL };
+}
+
+/** The review of a charter the reader edited, before it is approved, as the chosen worker will run it. */
+export function review(input: CharterInput, worker?: string) {
+  const { charter, unenforced } = charterFor(input, worker);
+  return { input, charter, unenforced, markdown: charterMarkdown(charter), review: reviewHosted(charter), files: ORIGINAL };
 }

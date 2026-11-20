@@ -55,12 +55,12 @@ async function startPage() {
 
 // ---- the charter --------------------------------------------------------------------------------------------
 
-async function draftCharter(goal) {
+async function draftCharter(goal, plain = false) {
   state.busy = true;
   state.error = "";
   draw();
   try {
-    const out = await post("api/charter/draft", { goal });
+    const out = await post("api/charter/draft", { goal, worker: state.worker, plain });
     state.draft = out;
     state.input = structuredClone(out.input);
     state.review = out.review;
@@ -80,9 +80,9 @@ function changed() {
   clearTimeout(reviewTimer);
   reviewTimer = setTimeout(async () => {
     try {
-      const out = await post("api/charter/review", { input: state.input });
+      const out = await post("api/charter/review", { input: state.input, worker: state.worker });
       state.review = out.review;
-      state.draft = { ...state.draft, charter: out.charter, markdown: out.markdown };
+      state.draft = { ...state.draft, charter: out.charter, markdown: out.markdown, unenforced: out.unenforced ?? [] };
       state.error = "";
     } catch (e) {
       state.error = e.message;
@@ -155,6 +155,13 @@ const WORKER_LABEL = {
   api: "live: a Claude model with file tools, not Claude Code",
   scripted: "scripted: no model is called",
 };
+const DRAFTED = {
+  model: "Claude wrote the draft. Check each part on the right, change what is wrong, then approve it. What you set is what the job runs.",
+  defaults: "This is the default charter of the demo. Change what you like on the right, then approve it. What you set is what the job runs.",
+  "defaults-after-error": "Claude could not draft a charter just now, so this is the default charter of the demo. Change what you like on the right, or draft again.",
+};
+/** The checks that run the code. Only Claude Code has them. */
+const RUNS_CODE = new Set(["tests-pass", "legacy-loads"]);
 const WORKER_SHORT = { "claude-code": "Claude Code · Sonnet 5.5 · watcher Opus 5.5", api: "Claude through the API · Haiku 5.5", scripted: "Scripted · no model" };
 /** A deletion cannot be undone inside the job. Anything else waits because the charter says so. */
 const isDelete = (summary) => /^(delete_file |Bash: (git )?rm )/.test(String(summary));
@@ -241,7 +248,7 @@ function drawStream() {
         h("div", { class: "ws-empty" }, h("h1", {}, "Describe the job"), h("p", {}, "Say what you want done to the invoices project below. Candor drafts a charter: what the job must achieve, the rules it is judged by, what it may touch, and what waits for you. You check it on the right, and the job starts when you approve it."), h("p", { class: "note" }, "The job runs a real worker on the files of the project. Candor checks every action before it runs, takes a checkpoint at the end of each stage, and has a separate watcher score it.")),
       );
     } else {
-      put(el, h("div", { class: "ws-col" }, h("div", { class: "ws-user" }, h("div", {}, state.goalAsked)), h("div", { class: "ws-card accent" }, h("b", {}, "Candor drafted a charter from your request and the files of the project."), h("div", {}, state.draft.drafted_by === "model" ? "Claude wrote the draft. Check each part on the right, change what is wrong, then approve it." : "No model is available here, so this is the default charter of the demo. Change what you like on the right, then approve it."), state.draft.input.note ? h("div", { class: "s" }, state.draft.input.note) : null)));
+      put(el, h("div", { class: "ws-col" }, h("div", { class: "ws-user" }, h("div", {}, state.goalAsked)), h("div", { class: "ws-card accent" }, h("b", {}, "Candor drafted a charter from your request and the files of the project."), h("div", {}, DRAFTED[state.draft.drafted_by] ?? DRAFTED.defaults), state.draft.input.note ? h("div", { class: "s" }, state.draft.input.note) : null)));
     }
     return;
   }
@@ -327,7 +334,8 @@ function drawComposer() {
   const text = h("textarea", { "aria-label": "Describe the job", rows: 2, placeholder: SUGGESTED });
   text.value = state.goalAsked ?? SUGGESTED;
   const go = h("button", { class: "btn primary", type: "button", disabled: state.busy ? true : null, onclick: () => draftCharter(text.value.trim() || SUGGESTED) }, state.busy ? "Drafting…" : state.draft ? "Draft again" : "Draft the charter");
-  put(el, h("div", { class: "ws-box" }, text, h("div", { class: "row" }, workerPicker(), h("span", { style: "flex:1" }), go)), h("div", { class: "ws-hint" }, "Your words shape the charter. The project and its checks come from the folder on the left."));
+  const plain = h("button", { class: "btn", type: "button", disabled: state.busy ? true : null, title: "Skip the model and edit the demo's default charter yourself", onclick: () => draftCharter(text.value.trim() || SUGGESTED, true) }, "Use the default charter");
+  put(el, h("div", { class: "ws-box" }, text, h("div", { class: "row" }, workerPicker(), h("span", { style: "flex:1" }), plain, go)), h("div", { class: "ws-hint" }, "Your words shape the charter. The project and its checks come from the folder on the left."));
 }
 
 /** The worker, picked the way a model is picked in the Claude app. The other two are there if one does not work. */
@@ -340,6 +348,8 @@ function workerPicker() {
   const pick = h("select", { class: "ws-model", "aria-label": "Who does the work", id: "ws-worker" }, options.map(([v, t, ok]) => h("option", { value: v, selected: state.worker === v ? true : null, disabled: ok ? null : true }, ok ? t : `${t} (not set up here)`)));
   pick.addEventListener("change", () => {
     state.worker = pick.value;
+    // The charter is shown as this worker will run it, so it is reviewed again.
+    if (state.draft) changed();
     drawPane();
   });
   return pick;
@@ -426,7 +436,7 @@ function charterEditor(el) {
 
   const crit = charter.success.map((s) => {
     const builtIn = s.check && !s.check.startsWith("custom-");
-    return h("div", { class: "ws-crit" }, h("span", { class: "t" }, s.text), s.check ? h("span", { class: "badge strong", title: "This check failed on its planted fault, so it can fail." }, "strong check") : h("span", { class: "badge", title: "Nothing checks this, so the receipt will not claim it." }, "not claimed"), builtIn ? h("button", { class: "ws-x", type: "button", title: "Turn this check off", onclick: () => set((i) => (i.checks = { ...(i.checks ?? {}), [s.check]: false })) }, "×") : null);
+    return h("div", { class: "ws-crit" }, h("span", { class: "t" }, s.text), s.check ? h("span", { class: "badge strong", title: RUNS_CODE.has(s.check) ? "This check runs the code in the job's container. It failed on its planted fault, so it can fail." : "This check failed on its planted fault, so it can fail." }, RUNS_CODE.has(s.check) ? "strong check · runs the code" : "strong check") : h("span", { class: "badge", title: "Nothing checks this, so the receipt will not claim it." }, "not claimed"), builtIn ? h("button", { class: "ws-x", type: "button", title: "Turn this check off", onclick: () => set((i) => (i.checks = { ...(i.checks ?? {}), [s.check]: false })) }, "×") : null);
   });
   const off = Object.entries(input.checks ?? {}).filter(([, v]) => v === false).map(([k]) => k);
   const customPaths = h("input", { type: "text", placeholder: "src/**", "aria-label": "Paths of a new check" });
@@ -456,7 +466,8 @@ function charterEditor(el) {
   const holds = HOLDS.map((o) => {
     const box = h("input", { type: "checkbox", checked: (input.hold ?? []).includes(o.value) ? true : null });
     box.addEventListener("change", () => set((i) => (i.hold = box.checked ? [...new Set([...(i.hold ?? []), o.value])] : (i.hold ?? []).filter((x) => x !== o.value))));
-    return h("label", { style: "display:flex;gap:8px;align-items:center;color:var(--fg)" }, box, o.label);
+    const notEnforced = (state.draft.unenforced ?? []).includes(o.value);
+    return h("label", { style: "display:flex;gap:8px;align-items:center;color:var(--fg)" }, box, o.label, notEnforced ? h("span", { class: "badge", title: "With Claude Code, Candor holds shell commands. A write has no shell form, so this is not enforced." }, "not enforced with Claude Code") : null);
   });
   // Holds the reader adds: writing or deleting a path, or running a command. Each can be removed.
   const KINDS = { write_file: "Writing", delete_file: "Deleting", command: "Running" };
@@ -465,7 +476,7 @@ function charterEditor(el) {
     const m = /^(write_file|delete_file)\s+(.+)$/.exec(x);
     return m ? `${KINDS[m[1]]} ${m[2]}` : `Running ${x}`;
   };
-  const ownRows = own.map((x) => h("div", { class: "ws-hold" }, h("span", {}, describeHold(x)), h("button", { class: "link", type: "button", "aria-label": `Remove ${describeHold(x)}`, onclick: () => set((i) => (i.hold = (i.hold ?? []).filter((y) => y !== x))) }, "Remove")));
+  const ownRows = own.map((x) => h("div", { class: "ws-hold" }, h("span", {}, describeHold(x), (state.draft.unenforced ?? []).includes(x) ? h("span", { class: "badge", style: "margin-left:8px" }, "not enforced with Claude Code") : null), h("button", { class: "link", type: "button", "aria-label": `Remove ${describeHold(x)}`, onclick: () => set((i) => (i.hold = (i.hold ?? []).filter((y) => y !== x))) }, "Remove")));
   const holdKind = h("select", { "aria-label": "What waits for you" }, Object.entries(KINDS).map(([v, t]) => h("option", { value: v }, `${t}…`)));
   const holdWhat = h("input", { type: "text", placeholder: "src/money.js", "aria-label": "Which path or command" });
   holdKind.addEventListener("change", () => (holdWhat.placeholder = holdKind.value === "command" ? "git commit *" : "src/money.js"));
@@ -490,6 +501,7 @@ function charterEditor(el) {
     box.addEventListener("change", () => {
       state.worker = value;
       drawComposer();
+      changed();
     });
     return h("label", { style: "display:flex;gap:8px;align-items:flex-start;color:var(--fg)" }, box, h("span", {}, label, h("br"), h("span", { class: "note" }, available ? note : `${note} Not set up on this copy of the site.`)));
   };

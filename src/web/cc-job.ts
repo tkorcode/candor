@@ -3,7 +3,7 @@ import type { Charter } from "../core/charter/schema.js";
 import { GENESIS, type LedgerEntry } from "../core/ledger/types.js";
 import { entryHash } from "../core/ledger/verify.js";
 import { buildCharter, type CharterInput, charterMarkdown } from "../hosted/charter.js";
-import { localCharter, localCharterYaml, localTask } from "../hosted/local-charter.js";
+import { CLAUDE_CODE_BUDGET_USD, localCharter, localCharterYaml, localTask } from "../hosted/local-charter.js";
 import { type FaultName, isFaultName, NAMED_FAULTS } from "../hosted/named-faults.js";
 import { ORIGINAL } from "../hosted/sample.generated.js";
 
@@ -54,13 +54,13 @@ export const RESTART_WINDOW_MS = 10 * 60 * 1000;
 const newToken = () => Array.from(crypto.getRandomValues(new Uint8Array(24)), (b) => b.toString(16).padStart(2, "0")).join("");
 
 export function createCcJob(id: string, input: CharterInput, worker: string, now = new Date(), fault: unknown = null): CcJob {
-  return { fault: isFaultName(fault) ? fault : null, kind: "claude-code", id, token: newToken(), input, charter: buildCharter(input), worker, phase: "starting", status: "starting", statusReason: "The container is starting. This takes up to a minute.", lines: [], blobs: {}, anchors: [], files: {}, held: null, receipt: null, log: "", created: now.toISOString(), polls: 0 };
+  return { fault: isFaultName(fault) ? fault : null, kind: "claude-code", id, token: newToken(), input, charter: buildCharter({ ...input, max_cost_usd: input.max_cost_usd ?? CLAUDE_CODE_BUDGET_USD }), worker, phase: "starting", status: "starting", statusReason: "The container is starting. This takes up to a minute.", lines: [], blobs: {}, anchors: [], files: {}, held: null, receipt: null, log: "", created: now.toISOString(), polls: 0 };
 }
 
 /** Sends the charter and the task to the container and starts `candor run` there. */
 export async function startCc(job: CcJob, box: Box): Promise<void> {
   const charter = job.charter;
-  const res = await box.fetch("/start", { method: "POST", body: { token: job.token, run: job.id, charter: localCharterYaml(charter), task: localTask(charter), model: job.worker, ...(job.fault ? { fault: { name: job.fault, instruction: NAMED_FAULTS[job.fault].instruction } } : {}), maxUsd: Math.min(3, charter.budget.max_cost_usd * 3) } });
+  const res = await box.fetch("/start", { method: "POST", body: { token: job.token, run: job.id, charter: localCharterYaml(charter, job.input), task: localTask(charter), model: job.worker, ...(job.fault ? { fault: { name: job.fault, instruction: NAMED_FAULTS[job.fault].instruction } } : {}), maxUsd: charter.budget.max_cost_usd } });
   if (res.status !== 200) throw new Error(String(res.body.error ?? `The container answered ${res.status}.`));
   job.phase = "running";
   job.status = "running";
@@ -170,7 +170,7 @@ export async function actCc(job: CcJob, box: Box, action: Record<string, unknown
 /** What the page shows, in the shape of a workspace job. */
 export function viewCc(job: CcJob) {
   const entries = job.lines.map((l) => JSON.parse(l) as LedgerEntry);
-  const versions: Charter[] = [localCharter(job.charter).charter];
+  const versions: Charter[] = [localCharter(job.charter, job.input).charter];
   for (const e of entries.filter((x) => x.type === "rule_change")) {
     const b = e.body as { rule?: { id: string; text: string; dimension: Charter["drift_rules"][number]["dimension"]; source?: string }; version?: number };
     const prev = versions.at(-1) as Charter;

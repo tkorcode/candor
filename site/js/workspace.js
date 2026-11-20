@@ -13,7 +13,7 @@ import { verifyChain, verifyReceiptSignature } from "./verify.js";
 const $ = (id) => document.getElementById(id);
 /** Appends children, leaving out the empty ones, as h() does. */
 const put = (el, ...nodes) => el.append(...nodes.flat().filter((n) => n !== null && n !== undefined && n !== false));
-const state = { draft: null, input: null, files: {}, review: [], job: null, tab: "run", selected: null, open: null, polling: 0, seeded: false, fault: "", live: true, worker: "api", workers: { claude_code: false, live: false }, openDims: {}, busy: false, error: "" };
+const state = { draft: null, input: null, files: {}, review: [], job: null, tab: "run", selected: null, open: null, polling: 0, seeded: false, fault: "", live: true, worker: "api", workers: { claude_code: false, live: false }, openDims: {}, projects: [], page: null, busy: false, error: "" };
 const SUGGESTED = "Move the invoices service from CommonJS to ES modules, with no change to its public functions.";
 const HOLDS = [
   { value: "delete_file *", label: "Deleting any file" },
@@ -42,6 +42,7 @@ async function startPage() {
     state.files = first.files;
     state.workers = await get("api/workers").catch(() => ({ claude_code: false, live: false }));
     state.worker = state.workers.claude_code ? "claude-code" : state.workers.live ? "api" : "scripted";
+    state.projects = (await get("projects.json").catch(() => ({ projects: [] }))).projects ?? [];
   } catch {
     clear($("stream")).append(h("div", { class: "ws-empty" }, h("h1", {}, "The workspace is not running here"), h("p", {}, "On a laptop, run npm run build and then npm run site:serve. The hosted site runs it at /workspace.html.")));
     return;
@@ -168,6 +169,7 @@ const isDelete = (summary) => /^(delete_file |Bash: (git )?rm )/.test(String(sum
 
 function draw() {
   drawAlert();
+  drawProjects();
   drawTree();
   drawTop();
   drawStream();
@@ -203,6 +205,8 @@ function drawTree() {
 
 function openFile(path) {
   state.open = state.open === path ? null : path;
+  state.page = null;
+  drawProjects();
   const v = $("viewer");
   if (!state.open) {
     v.hidden = true;
@@ -220,6 +224,54 @@ function openFile(path) {
   );
   v.hidden = false;
   drawTree();
+}
+
+// ---- the projects --------------------------------------------------------------------------------------------
+
+const PROJECT_STATUS = { here: ["ok", "runs here"], machine: ["warn", "on your machine"], charter: ["", "charter only"] };
+
+/** The projects in the left pane. The one that runs here also lists its files below it. */
+function drawProjects() {
+  const el = clear($("projects"));
+  for (const p of state.projects) {
+    const [cls, label] = PROJECT_STATUS[p.status] ?? PROJECT_STATUS.charter;
+    put(el, h("li", {}, h("button", { type: "button", "aria-current": state.page === p.id ? "true" : "false", onclick: () => openProject(p.id) }, h("span", { class: "n" }, p.name), h("span", { class: "k" }, p.kind), h("span", { class: `chip ${cls}` }, label))));
+  }
+}
+
+/** A page for one project: what it helps test, how to run it, and code samples taken from its files. */
+function openProject(id) {
+  state.page = state.page === id ? null : id;
+  state.open = null;
+  const v = $("viewer");
+  const p = state.projects.find((x) => x.id === state.page);
+  drawProjects();
+  drawTree();
+  if (!p) {
+    v.hidden = true;
+    return;
+  }
+  const [cls, label] = PROJECT_STATUS[p.status] ?? PROJECT_STATUS.charter;
+  const close = () => openProject(p.id);
+  const start = () => {
+    close();
+    $("composer").querySelector("textarea")?.focus();
+  };
+  clear(v).append(
+    h("div", { class: "ws-top", style: "padding:0 0 10px;border:0" }, h("b", {}, p.name), h("span", { class: "ws-kind" }, p.kind), h("span", { class: `chip ${cls}` }, label), h("span", { class: "grow" }), h("button", { class: "btn", type: "button", onclick: close }, "Close")),
+    h("div", { class: "ws-page" },
+      h("p", { class: "lead" }, p.summary),
+      h("p", { class: "ws-page-status" }, p.status_text),
+      p.status === "here" && !state.job ? h("button", { class: "btn primary", type: "button", onclick: start }, "Start a job on this project") : null,
+      p.run ? h("div", {}, h("h3", {}, "Run it on your machine"), h("pre", {}, p.run), p.run_note ? h("p", {}, h("a", { href: p.run_note.href }, p.run_note.text)) : null) : null,
+      p.link ? h("p", {}, h("a", { href: p.link.href }, p.link.text)) : null,
+      h("h3", {}, "What it helps you test"),
+      h("dl", { class: "ws-tests" }, p.tests.flatMap(([what, how]) => [h("dt", {}, what), h("dd", {}, how)])),
+      h("h3", {}, "Code samples"),
+      p.samples.map((x) => h("figure", { class: "ws-sample" }, h("figcaption", {}, x.title, h("span", { class: "f" }, x.file)), h("pre", {}, x.code))),
+    ),
+  );
+  v.hidden = false;
 }
 
 function drawTop() {

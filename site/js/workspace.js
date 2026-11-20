@@ -468,9 +468,13 @@ function drawComposer() {
   }
   const text = h("textarea", { "aria-label": "Describe the job", rows: 2, placeholder: SUGGESTED });
   text.value = state.goalAsked ?? SUGGESTED;
-  const go = h("button", { class: "btn primary", type: "button", disabled: state.busy ? true : null, onclick: () => draftCharter(text.value.trim() || SUGGESTED) }, state.busy ? "Drafting…" : state.draft ? "Draft again" : "Draft the charter");
-  const plain = h("button", { class: "btn", type: "button", disabled: state.busy ? true : null, title: "Skip the model and edit the demo's default charter yourself", onclick: () => draftCharter(text.value.trim() || SUGGESTED, true) }, "Use the default charter");
-  put(el, h("div", { class: "ws-box" }, text, h("div", { class: "row" }, workerPicker(), h("span", { style: "flex:1" }), plain, go)), h("div", { class: "ws-hint" }, "Nothing runs until you approve."));
+  // A request left as the suggestion, or empty, starts from the default charter; anything typed goes to Claude.
+  const draftNow = () => {
+    const typed = text.value.trim();
+    draftCharter(typed || SUGGESTED, !typed || typed === SUGGESTED);
+  };
+  const go = h("button", { class: "btn primary", type: "button", disabled: state.busy ? true : null, onclick: draftNow }, state.busy ? "Drafting…" : state.draft ? "Draft again" : "Draft the charter");
+  put(el, h("div", { class: "ws-box" }, text, h("div", { class: "row" }, workerPicker(), h("span", { style: "flex:1" }), go)), h("div", { class: "ws-hint" }, "Nothing runs until you approve."));
 }
 
 /** The worker, picked the way a model is picked in the Claude app. The other two are there if one does not work. */

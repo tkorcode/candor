@@ -774,9 +774,18 @@ function paneRun(el) {
   const ruleForm = (label, button, send) => {
     const d = h("select", { "aria-label": "What the rule is about" }, DIMENSIONS.map((x) => h("option", { value: x, selected: x === "scope" ? true : null }, x)));
     const t = h("input", { type: "text", placeholder: "For example: never change legacy/, not even to keep it loading.", "aria-label": label });
-    const go = h("button", { class: "btn", type: "button", disabled: true, onclick: () => send(d.value, t.value.trim()) }, button);
-    t.addEventListener("input", () => (go.disabled = state.busy || t.value.trim().length < 5));
-    return h("div", { class: "ws-form" }, h("div", { class: "ws-pairs", style: "grid-template-columns:110px 1fr" }, d, t), go);
+    const msg = h("p", { class: "note", role: "status" });
+    // The button stays active. With no rule yet, it says so and puts the cursor in the box.
+    const go = h("button", { class: "btn", type: "button", disabled: state.busy ? true : null, onclick: () => {
+      if (t.value.trim().length < 5) {
+        msg.textContent = "Write a rule first.";
+        t.focus();
+        return;
+      }
+      send(d.value, t.value.trim());
+    } }, button);
+    t.addEventListener("input", () => (msg.textContent = ""));
+    return h("div", { class: "ws-form" }, h("div", { class: "ws-pairs", style: "grid-template-columns:110px 1fr" }, d, t), go, msg);
   };
   if (cp.safety === "safe_to_restart" && win.ok) {
     put(el, h("div", { class: "ws-sec" }, h("h3", {}, `Restart from ${cp.id}`), h("p", { class: "sub" }, `Starts a new branch from the files of ${cp.id}, with a rule you write for it. Branch ${cp.branch} stays in the record.`), ruleForm("Rule for the new branch", `Restart from ${cp.id}`, (dimension, reason) => act({ kind: "restart", from: cp.id, reason, dimension }))));
@@ -873,20 +882,26 @@ function openMenu(id, x, y) {
   if (target && win.ok) {
     const reason = h("input", { type: "text", id: "ws-menu-reason", "aria-label": "Rule for the new branch", placeholder: "Do the stages in order." });
     const dim = h("select", { "aria-label": "What the rule is about" }, DIMENSIONS.map((d) => h("option", { value: d, selected: d === "plan" ? true : null }, d)));
-    const go = h("button", { class: "btn primary", type: "button", disabled: true, onclick: () => {
+    const msg = h("div", { class: "s", role: "status" });
+    // The restart needs a rule. The button stays active: with no rule yet, it says so and puts the cursor in the box.
+    const go = h("button", { class: "btn primary", type: "button", disabled: state.busy ? true : null, onclick: () => {
+      if (reason.value.trim().length < 5) {
+        msg.textContent = "Write a rule for the new branch first.";
+        reason.focus();
+        return;
+      }
       closeMenu();
       act({ kind: "restart", from: target.id, reason: reason.value.trim(), dimension: dim.value });
     } }, `Restart from ${target.id}`);
-    // The restart needs a rule, so the button waits until there is one.
-    reason.addEventListener("input", () => (go.disabled = state.busy || reason.value.trim().length < 5));
-    reason.addEventListener("keydown", (e) => e.key === "Enter" && !go.disabled && go.click());
+    reason.addEventListener("input", () => (msg.textContent = ""));
+    reason.addEventListener("keydown", (e) => e.key === "Enter" && go.click());
     parts.push(
       h("div", { class: "ws-menu-form" },
         h("div", { class: "s" }, target === cp ? `Starts a new branch from ${cp.id}.` : `Cannot restart from ${cp.id}. Use ${target.id}.`),
         h("label", { class: "s", for: "ws-menu-reason" }, "Rule for the new branch"),
         h("div", { class: "ws-menu-rule" }, dim, reason),
         h("div", { class: "s" }, h("button", { class: "link", type: "button", onclick: () => { closeMenu(); openFile(".candor/charter.md"); } }, "See the charter")),
-        go, win.note ? h("div", { class: "s" }, win.note) : null),
+        go, msg, win.note ? h("div", { class: "s" }, win.note) : null),
     );
   } else parts.push(h("div", { class: "ws-menu-form" }, h("div", { class: "s" }, !win.ok ? win.note : `Cannot restart from ${cp.id} or any earlier checkpoint on branch ${cp.branch}.`)));
   parts.push(h("button", { type: "button", role: "menuitem", class: "ws-menu-item", onclick: () => { closeMenu(); select(id); } }, h("span", {}, "Show its score")));

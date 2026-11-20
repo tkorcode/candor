@@ -31,7 +31,7 @@ export interface CharterInput {
   max_cost_usd?: number;
   checks?: Record<string, boolean>;
   custom_checks?: { paths: string[]; text: string }[];
-  /** Points the job must meet that no check can test. The receipt does not claim them, and the watcher scores them on goal. */
+  /** Success criteria of the reader that no check can test. The receipt does not claim them, and the watcher scores them on goal. */
   criteria?: string[];
 }
 

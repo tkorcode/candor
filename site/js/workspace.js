@@ -171,16 +171,18 @@ const QUESTION = { goal: "Does the work serve the goal?", scope: "Does it stay i
 const workerOf = (job) => (job.worker === "claude-code" ? "claude-code" : job.mode === "live" ? "api" : "scripted");
 const WORKER_LABEL = {
   "claude-code": "live: Claude Code in its own container, Sonnet 5.5 worker, Opus 5.5 watcher",
-  api: "live: a Claude model with file tools, not Claude Code",
+  api: "Claude API · file tools",
   scripted: "scripted: no model is called",
 };
 const DRAFTED = {
-  model: "Claude wrote the draft. Check each part on the right, change what is wrong, then approve it. What you set is what the job runs.",
-  defaults: "This is the default charter of the demo. Change what you like on the right, then approve it. What you set is what the job runs.",
+  model: "Claude wrote the draft. Check each part on the right and change what is wrong. The job runs this charter.",
+  defaults: "This is the default charter of the demo. Change what you like on the right. The job runs this charter.",
   "defaults-after-error": "Claude could not draft a charter just now, so this is the default charter of the demo. Change what you like on the right, or draft again.",
 };
 /** The checks that run the code. Only Claude Code has them. */
 const RUNS_CODE = new Set(["tests-pass", "legacy-loads"]);
+/** The same four status words everywhere: chips, the scale, the map and the stream. */
+const LEVEL_WORD = { ok: "On course", warn: "Warning", pause: "Paused" };
 const WORKER_SHORT = { "claude-code": "Claude Code · Sonnet 5.5 · watcher Opus 5.5", api: "Claude through the API · Haiku 5.5", scripted: "Scripted · no model" };
 /** A deletion cannot be undone inside the job. Anything else waits because the charter says so. */
 const isDelete = (summary) => /^(delete_file |Bash: (git )?rm )/.test(String(summary));
@@ -201,11 +203,13 @@ function draw() {
 }
 
 function drawTree() {
-  // Only invoices has files here, so they show only while it is the selected project.
-  const shown = state.project === "invoices";
-  $("tree").hidden = !shown;
-  $("tree-head").hidden = !shown;
-  if (!shown) return;
+  // The files of the selected project. Only invoices runs here, so only its files change during a job.
+  const project = state.projects.find((x) => x.id === state.project);
+  $("tree-head").textContent = `Files of ${project?.name ?? "invoices"}`;
+  if (state.project !== "invoices" && project) {
+    drawProjectFiles(project);
+    return;
+  }
   const files = state.job?.files ?? (state.draft ? { ...state.files, ".candor/charter.md": state.draft.markdown } : state.files);
   const original = state.job?.original ?? state.files;
   const deny = charterNow()?.scope.deny_paths ?? [];
@@ -224,6 +228,41 @@ function drawTree() {
     const tag = p.startsWith(".candor/") ? (state.job ? h("span", { class: "tagr n" }, "charter") : h("span", { class: "tagr n" }, "new")) : gone ? h("span", { class: "tagr d" }, "D") : !(p in original) ? h("span", { class: "tagr n" }, "A") : files[p] !== original[p] ? h("span", { class: "tagr m" }, "M") : null;
     put(tree, h("li", {}, h("button", { type: "button", "aria-current": state.open === p ? "true" : "false", style: d ? "padding-left:18px" : "", onclick: () => openFile(p) }, h("span", { class: gone ? "gone" : "" }, parts.at(-1)), tag)));
   }
+}
+
+/** The files of a project that does not run here, grouped by folder. Each opens read only. */
+function drawProjectFiles(project) {
+  const tree = clear($("tree"));
+  const entries = Object.keys(project.files ?? {}).map((p) => ({ p, d: p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "" }));
+  entries.sort((a, b) => a.d.localeCompare(b.d) || a.p.localeCompare(b.p));
+  let dir = null;
+  for (const { p, d } of entries) {
+    if (d !== dir) {
+      dir = d;
+      if (d) put(tree, h("li", { class: "dir" }, `${d}/`));
+    }
+    put(tree, h("li", {}, h("button", { type: "button", "aria-current": state.open === `${project.id}:${p}` ? "true" : "false", style: d ? "padding-left:18px" : "", onclick: () => openProjectFile(project, p) }, h("span", {}, p.split("/").at(-1)))));
+  }
+  if (project.files_note) put(tree, h("li", { class: "note", style: "padding:10px 8px" }, project.files_note));
+}
+
+function openProjectFile(project, path) {
+  const key = `${project.id}:${path}`;
+  state.open = state.open === key ? null : key;
+  state.page = null;
+  drawProjects();
+  drawTree();
+  const v = $("viewer");
+  if (!state.open) {
+    v.hidden = true;
+    return;
+  }
+  const f = project.files[path];
+  clear(v).append(
+    h("div", { class: "ws-top", style: "padding:0 0 10px;border:0" }, h("b", {}, path), h("span", { class: "ws-kind" }, `${project.name} · ${f.from}`), h("span", { class: "grow" }), h("button", { class: "btn", type: "button", onclick: () => openProjectFile(project, path) }, "Close")),
+    h("pre", {}, f.text),
+  );
+  v.hidden = false;
 }
 
 function openFile(path) {
@@ -313,7 +352,7 @@ function drawTop() {
   }
   const charter = charterNow();
   const reported = j.entries.filter((e) => e.type === "stage_report" && (e.branch ?? "A") === j.branch).length;
-  const word = { running: "Running", held: "Waiting for you", paused: "Paused by the watcher", done: "Done", stopped: "Stopped", failed: "Failed" }[j.status];
+  const word = { running: "Running", held: "Waiting for you", paused: "Paused", done: "Done", stopped: "Stopped", failed: "Failed" }[j.status];
   put(top, [h("span", {}, h("span", { class: `dot ${j.status}` }), h("b", {}, word)), j.status === "running" || j.status === "held" ? h("span", {}, `Stage ${Math.min(reported + 1, charter.stages.length)} of ${charter.stages.length}`) : null, h("span", {}, `branch ${j.branch}`), h("span", { class: "ws-model" }, WORKER_SHORT[workerOf(j)]), h("span", { class: "grow" }), h("span", {}, `${j.turns} turns · ${money(j.cost.worker + j.cost.watcher)}`)].filter(Boolean));
 }
 
@@ -379,7 +418,7 @@ function drawStream() {
     else if (e.type === "tool_intent" && e.body.decision === "deny") put(col, h("div", { class: "ws-ev" }, h("span", { class: "ws-who" }, "Candor"), h("span", {}, h("span", { class: "ws-no" }, "Refused "), h("span", { class: "ws-tool" }, e.body.summary), ` ${e.body.reason ?? ""}`)));
     else if (e.type === "tool_intent" && e.body.decision === "hold") {
       const open = j.pending?.seq === e.seq;
-      put(col, h("div", { class: "ws-card warn ws-held" }, h("span", { class: "t" }, h("b", {}, open ? "Waiting for you. " : "Held for a person. "), "The worker asks to run ", h("span", { class: "ws-tool" }, e.body.summary), isDelete(e.body.summary) ? ", which cannot be undone inside the job." : ". The charter says it waits for a person."), open ? h("button", { class: "btn", type: "button", disabled: state.busy ? true : null, onclick: () => act({ kind: "deny" }) }, "Deny") : null, open ? h("button", { class: "btn primary", type: "button", disabled: state.busy ? true : null, onclick: () => act({ kind: "approve" }) }, "Approve") : null));
+      put(col, h("div", { class: "ws-card warn ws-held" }, h("span", { class: "t" }, h("b", {}, "Needs your approval. "), "The worker asks to run ", h("span", { class: "ws-tool" }, e.body.summary), isDelete(e.body.summary) ? ". It cannot be undone." : "."), open ? h("button", { class: "btn", type: "button", disabled: state.busy ? true : null, onclick: () => act({ kind: "deny" }) }, "Deny") : null, open ? h("button", { class: "btn primary", type: "button", disabled: state.busy ? true : null, onclick: () => act({ kind: "approve" }) }, "Approve") : null));
     } else if (e.type === "human_action") put(col, h("div", { class: "ws-ev" }, h("span", { class: "ws-who" }, "You"), h("span", {}, { approve: "Approved the held action, once.", deny: "Denied the held action.", continue: "Continued the job.", stop: "Stopped the job." }[e.body.action] ?? e.body.action)));
     else if (e.type === "stage_report") {
       const st = stages.get(e.body.stage);
@@ -391,11 +430,11 @@ function drawStream() {
       const lvl = score?.body.status === "scored" ? levelFor(score.body.overall, charterNow().thresholds) : null;
       const label = { stage_done: "", before_irreversible: " · before the held step", final: " · end of the job", restart: " · restart point" }[e.body.trigger] ?? "";
       put(col, 
-        h("div", { class: `ws-card ${lvl === "warn" || lvl === "pause" ? lvl : ""}` }, h("button", { class: "link", type: "button", onclick: () => select(e.body.id) }, h("b", {}, `Checkpoint ${e.body.id}`)), h("span", { class: "s" }, label), " ", lvl ? h("span", { class: `chip ${lvl}` }, `${lvl === "ok" ? "on course" : lvl} ${fmt(score.body.overall)}`) : h("span", { class: "chip none" }, score ? (score.body.status === "unavailable" ? "watcher unavailable" : "not scored") : "scoring…"), h("div", { class: "s" }, checks.length ? checks.map((c) => `${c.body.status === "passed" ? "✓" : "✗"} ${c.body.check}`).join(" · ") : "no exit checks here"), score?.body.findings?.[0] ? h("div", { class: "s" }, `Watcher: ${score.body.findings[0].summary}`) : null),
+        h("div", { class: `ws-card ${lvl === "warn" || lvl === "pause" ? lvl : ""}` }, h("button", { class: "link", type: "button", onclick: () => select(e.body.id) }, h("b", {}, `Checkpoint ${e.body.id}`)), h("span", { class: "s" }, label), " ", lvl ? h("span", { class: `chip ${lvl}` }, `${LEVEL_WORD[lvl] ?? lvl} ${fmt(score.body.overall)}`) : h("span", { class: "chip none" }, score ? (score.body.status === "unavailable" ? "watcher unavailable" : "not scored") : "scoring…"), h("div", { class: "s" }, checks.length ? checks.map((c) => `${c.body.status === "passed" ? "✓" : "✗"} ${c.body.check}`).join(" · ") : "no exit checks here"), score?.body.findings?.[0] ? h("div", { class: "s" }, `Watcher: ${score.body.findings[0].summary}`) : null),
       );
-    } else if (e.type === "check_result" && e.body.check === "watcher_note") put(col, h("div", { class: "ws-ev" }, h("span", { class: "ws-who" }, "Candor"), h("span", {}, "Sent the worker a note with the finding. A warn does not stop the job.")));
+    } else if (e.type === "check_result" && e.body.check === "watcher_note") put(col, h("div", { class: "ws-ev" }, h("span", { class: "ws-who" }, "Candor"), h("span", {}, "Warning sent. Job continues.")));
     else if (e.type === "rule_change" && e.body.rule?.source !== "restart") put(col, h("div", { class: "ws-card accent" }, h("b", {}, `You added a rule. Charter version ${e.body.version}. `), e.body.rule?.text, h("div", { class: "s" }, "Every scored checkpoint of this branch is scored again under it. Both scores are kept.")));
-    else if (e.type === "restart") put(col, h("div", { class: "ws-card accent" }, h("b", {}, `Restarted from ${e.body.from} as branch ${e.body.to_branch}. `), h("div", {}, `Your reason goes with it as a rule: "${e.body.reason}"`), h("div", { class: "s" }, `Branch ${e.body.from_branch} is kept for reference. The files and the conversation go back to ${e.body.from}.`)));
+    else if (e.type === "restart") put(col, h("div", { class: "ws-card accent" }, h("b", {}, `Restarted from ${e.body.from} as branch ${e.body.to_branch}. `), h("div", {}, `The rule for the new branch: "${e.body.reason}"`), h("div", { class: "s" }, `Back to ${e.body.from}. Branch ${e.body.from_branch} kept.`)));
     else if (e.type === "run_end") put(col, h("div", { class: "ws-stage" }, `The job ended: ${e.body.reason}`));
   }
   flush();
@@ -417,7 +456,7 @@ function drawComposer() {
   text.value = state.goalAsked ?? SUGGESTED;
   const go = h("button", { class: "btn primary", type: "button", disabled: state.busy ? true : null, onclick: () => draftCharter(text.value.trim() || SUGGESTED) }, state.busy ? "Drafting…" : state.draft ? "Draft again" : "Draft the charter");
   const plain = h("button", { class: "btn", type: "button", disabled: state.busy ? true : null, title: "Skip the model and edit the demo's default charter yourself", onclick: () => draftCharter(text.value.trim() || SUGGESTED, true) }, "Use the default charter");
-  put(el, h("div", { class: "ws-box" }, text, h("div", { class: "row" }, workerPicker(), h("span", { style: "flex:1" }), plain, go)), h("div", { class: "ws-hint" }, "Your words shape the charter. The project and its checks come from the folder on the left."));
+  put(el, h("div", { class: "ws-box" }, text, h("div", { class: "row" }, workerPicker(), h("span", { style: "flex:1" }), plain, go)), h("div", { class: "ws-hint" }, "Nothing runs until you approve."));
 }
 
 /** The worker, picked the way a model is picked in the Claude app. The other two are there if one does not work. */
@@ -516,21 +555,28 @@ function charterEditor(el) {
   goal.value = input.goal ?? charter.goal;
   goal.addEventListener("change", () => set((i) => (i.goal = goal.value)));
 
-  const crit = charter.success.map((s) => {
+  // What the reader adds in their own words is listed by itself, right above the field that adds it.
+  const crit = charter.success.filter((s) => !/^s-own-\d+$/.test(s.id)).map((s) => {
     const builtIn = s.check && !s.check.startsWith("custom-");
-    const own = /^s-own-(\d+)$/.exec(s.id);
-    if (own) {
-      const at = Number(own[1]) - 1;
-      return h("div", { class: "ws-crit" }, h("span", { class: "t" }, s.text), h("span", { class: "badge", title: "No check tests this, so the receipt does not claim it. The watcher scores it on goal at every checkpoint." }, "not claimed · the watcher scores it"), h("button", { class: "ws-x", type: "button", title: "Remove this point", onclick: () => set((i) => (i.criteria = (i.criteria ?? []).filter((_, k) => k !== at))) }, "×"));
-    }
-    return h("div", { class: "ws-crit" }, h("span", { class: "t" }, s.text), s.check ? h("span", { class: "badge strong", title: RUNS_CODE.has(s.check) ? "This check runs the code in the job's container. It failed on its planted fault, so it can fail." : "This check failed on its planted fault, so it can fail." }, RUNS_CODE.has(s.check) ? "strong check · runs the code" : "strong check") : h("span", { class: "badge", title: "Nothing checks this, so the receipt will not claim it." }, "not claimed"), builtIn ? h("button", { class: "ws-x", type: "button", title: "Turn this check off", onclick: () => set((i) => (i.checks = { ...(i.checks ?? {}), [s.check]: false })) }, "×") : null);
+    return h("div", { class: "ws-crit" }, h("span", { class: "t" }, s.text), s.check ? h("span", { class: "badge strong", title: RUNS_CODE.has(s.check) ? "Runs the code. Caught a fault we planted." : "Caught a fault we planted." }, RUNS_CODE.has(s.check) ? "tested · runs the code" : "tested") : h("span", { class: "badge", title: "No check covers this." }, "not verified"), builtIn ? h("button", { class: "ws-x", type: "button", title: "Turn this check off", onclick: () => set((i) => (i.checks = { ...(i.checks ?? {}), [s.check]: false })) }, "×") : null);
   });
   const off = Object.entries(input.checks ?? {}).filter(([, v]) => v === false).map(([k]) => k);
   const customPaths = h("input", { type: "text", placeholder: "src/**", "aria-label": "Paths of a new check" });
   const customText = h("input", { type: "text", placeholder: "require(", "aria-label": "Text that must not appear" });
-  const point = h("input", { type: "text", placeholder: "The README says the service is on ES modules.", "aria-label": "A point the job must meet" });
-  const addPoint = () => point.value.trim().length >= 5 && set((i) => (i.criteria = [...(i.criteria ?? []), point.value.trim()]));
-  point.addEventListener("keydown", (e) => e.key === "Enter" && addPoint());
+  const ownField = h("input", { type: "text", placeholder: "For example: the README says the service is on ES modules.", "aria-label": "A success criterion of your own" });
+  const ownMsg = h("p", { class: "note", role: "status" });
+  const addOwn = () => {
+    const text = ownField.value.trim();
+    if (text.length < 5) {
+      ownMsg.textContent = "Write the criterion as a sentence, at least 5 characters long.";
+      return;
+    }
+    input.criteria = [...(input.criteria ?? []), text];
+    drawPane();
+    changed();
+  };
+  ownField.addEventListener("keydown", (e) => e.key === "Enter" && addOwn());
+  const ownCriteria = (input.criteria ?? []).map((text, at) => h("div", { class: "ws-crit" }, h("span", { class: "t" }, text), h("span", { class: "badge", title: "Nothing can check this automatically. The watcher scores every checkpoint against it, and the receipt lists it as not verified." }, "the watcher scores it"), h("button", { class: "ws-x", type: "button", title: "Remove", "aria-label": `Remove ${text}`, onclick: () => set((i) => (i.criteria = (i.criteria ?? []).filter((_, k) => k !== at))) }, "×")));
 
   const rules = (input.rules ?? []).map((r, i) => {
     const dim = h("select", { "aria-label": "Dimension" }, DIMENSIONS.map((d) => h("option", { value: d, selected: d === r.dimension ? true : null }, d)));
@@ -586,34 +632,19 @@ function charterEditor(el) {
   ];
   const fault = h("select", {}, FAULTS.map(([v, t]) => h("option", { value: v, selected: state.fault === v ? true : null }, t)));
   fault.addEventListener("change", () => (state.fault = fault.value));
-  const choice = (value, label, note, available) => {
-    const box = h("input", { type: "radio", name: "worker", value, checked: state.worker === value ? true : null, disabled: available ? null : true });
-    box.addEventListener("change", () => {
-      state.worker = value;
-      drawComposer();
-      changed();
-    });
-    return h("label", { style: "display:flex;gap:8px;align-items:flex-start;color:var(--fg)" }, box, h("span", {}, label, h("br"), h("span", { class: "note" }, available ? note : `${note} Not set up on this copy of the site.`)));
-  };
-  const workers = [
-    choice("claude-code", "Claude Code", "Real Claude Code, Sonnet 5.5, in a container of its own with a shell, under the real candor run. Its checks also run the tests. Opus 5.5 watches.", state.workers.claude_code),
-    choice("api", "Claude through the API", "A Claude model with five file tools, not Claude Code. No shell, and nothing runs the code. Quick to start.", state.draft.live),
-    choice("scripted", "Scripted", "No model is called. The same moves every time.", true),
-  ];
-
   put(el, 
-    h("p", { style: "margin:0 0 12px" }, h("b", {}, "Check your charter. "), "This is what Candor holds the job to. Change what is wrong, then approve it. Candor writes it to .candor/charter.md in the project."),
-    sec(1, "Goal", "What must be true at the end.", goal),
-    sec(2, "Done when", "Each line is a success criterion. A strong check failed on a planted fault, so it can fail. A line with no check is not claimed by the receipt.", ...crit, off.length ? h("p", { class: "note" }, `Turned off: ${off.join(", ")}. `, h("button", { class: "link", type: "button", onclick: () => set((i) => (i.checks = {})) }, "Turn all back on")) : null, h("label", {}, "Add a check: no file under these paths contains this text", h("div", { class: "ws-pairs" }, customPaths, customText)), h("button", { class: "btn", type: "button", style: "margin-top:6px", onclick: () => customText.value.trim() && set((i) => (i.custom_checks = [...(i.custom_checks ?? []), { paths: (customPaths.value || "src/**").split(",").map((x) => x.trim()), text: customText.value.trim() }])) }, "Add check"), h("label", { style: "margin-top:12px" }, "Add a point in your own words", point), h("button", { class: "btn", type: "button", style: "margin-top:6px", onclick: addPoint }, "Add point"), h("p", { class: "note" }, "A point no check can test. The receipt does not claim it, and the watcher scores every checkpoint against it.")),
-    sec(3, "Rules the watcher scores against", "Plain sentences. A separate Claude model with no tools scores every checkpoint against them, on goal, scope, plan and evidence.", ...rules, h("button", { class: "link", type: "button", style: "margin-top:8px", onclick: () => set((i) => (i.rules = [...(i.rules ?? []), { dimension: "scope", text: "" }])) }, "+ Add a rule")),
+    h("p", { style: "margin:0 0 12px" }, h("b", {}, "Check your charter. "), "The job is checked against this. Change what is wrong, then approve."),
+    sec(1, "Goal", "What the job is for.", goal),
+    sec(2, "Done when", "Must be true at the end.", ...crit, off.length ? h("p", { class: "note" }, `Turned off: ${off.join(", ")}. `, h("button", { class: "link", type: "button", onclick: () => set((i) => (i.checks = {})) }, "Turn all back on")) : null, h("label", {}, "Add a check: no file under these paths contains this text", h("div", { class: "ws-pairs" }, customPaths, customText)), h("button", { class: "btn", type: "button", style: "margin-top:6px", onclick: () => customText.value.trim() && set((i) => (i.custom_checks = [...(i.custom_checks ?? []), { paths: (customPaths.value || "src/**").split(",").map((x) => x.trim()), text: customText.value.trim() }])) }, "Add check"), h("h4", { class: "ws-sub" }, "Add a success criterion of your own"), h("p", { class: "note", style: "margin:0 0 6px" }, "In your own words. No check can test it, so the watcher scores every checkpoint against it, and the receipt lists it as not verified."), ...ownCriteria, h("div", { class: "ws-pairs", style: "grid-template-columns:1fr auto" }, ownField, h("button", { class: "btn", type: "button", onclick: addOwn }, "Add criterion")), ownMsg),
+    sec(3, "Rules the watcher scores against", "One sentence per rule.", ...rules, h("button", { class: "link", type: "button", style: "margin-top:8px", onclick: () => set((i) => (i.rules = [...(i.rules ?? []), { dimension: "scope", text: "" }])) }, "+ Add a rule")),
     sec(4, "Scope", "Candor checks every write and delete against these before it happens.", list("allow", "May change"), list("deny", "May never change")),
     sec(5, "Needs your approval", "These wait for you. A checkpoint is taken first, so the files can be restored.", ...holds, ...ownRows, h("label", {}, "Add something that waits for you", holdAdd), h("button", { class: "btn", type: "button", style: "margin-top:6px", onclick: addHold }, "Add"), holdNote),
-    sec(6, "Limits", "Drift runs from 0, on course, to 1, off course.", h("div", { class: "ws-pairs" }, num("warn", "Warn at drift", "0.05"), num("pause", "Pause at drift", "0.05"), num("max_turns", "Worker turns at most", "5"), num("max_cost_usd", "Budget, US dollars", "0.1"))),
-    sec(7, "Who does the work", null, ...workers, h("label", {}, "Plant a fault", fault, h("span", { class: "note" }, "Adds one instruction to the worker, to see whether Candor catches it. It is written in the record before the worker starts, so the receipt shows the fault was planted."))),
-    state.review.length ? h("section", { class: "ws-sec" }, h("h3", {}, "Candor's review of this charter"), h("ul", { class: "ws-flags" }, state.review.map((r) => h("li", {}, r.message))), h("p", { class: "note" }, "Approving accepts these. The record keeps the review.")) : null,
+    sec(6, "Limits", "Drift: 0 on course, 1 off course.", h("div", { class: "ws-pairs" }, num("warn", "Warn at drift", "0.05"), num("pause", "Pause at drift", "0.05"), num("max_turns", "Worker turns at most", "5"), num("max_cost_usd", "Budget, US dollars", "0.1"))),
+    sec(7, "Test Candor (optional)", "Plant one fault for Candor to catch. The receipt shows it was planted.", h("label", { style: "display:flex;gap:10px;align-items:center" }, "Fault", fault)),
+    state.review.length ? h("section", { class: "ws-sec" }, h("h3", {}, "Candor's review of this charter"), h("ul", { class: "ws-flags" }, state.review.map((r) => h("li", {}, r.message))), h("p", { class: "note" }, "Approving accepts these.")) : null,
     state.error ? h("p", { class: "ws-no" }, state.error) : null,
     h("button", { class: "btn primary ws-start", type: "button", disabled: state.busy ? true : null, onclick: approve }, state.busy ? "Starting…" : "Approve the charter and start"),
-    h("p", { class: "note" }, "Approving writes the hash of the charter as the first entry of the record. A later change is a new version, never an edit."),
+    h("p", { class: "note" }, "Approving starts the job."),
   );
 }
 
@@ -637,8 +668,8 @@ function paneRun(el) {
   // checkpoint only when the reader is already at the right end.
   wrap.addEventListener("scroll", () => (state.mapScroll = { left: wrap.scrollLeft, atEnd: wrap.scrollLeft + wrap.clientWidth >= wrap.scrollWidth - 4 }));
   const legend = h("div", { class: "ws-legend" },
-    h("span", {}, h("span", { class: "ws-key round" }), "Can restart from here, as a new branch"),
-    h("span", {}, h("span", { class: "ws-key square" }), "Record only: a step that cannot be undone came before it"),
+    h("span", {}, h("span", { class: "ws-key round" }), "Can restart here"),
+    h("span", {}, h("span", { class: "ws-key square" }), "Cannot restart here"),
   );
   put(el, h("h3", { style: "margin:0 0 6px" }, "Run map"), legend, wrap, h("p", { class: "note" }, "The number in each checkpoint is its drift: the highest of its goal, scope, plan and evidence scores. Click a checkpoint for why. Right-click it to restart from there."));
   if (m.checkpoints.length)
@@ -653,7 +684,7 @@ function paneRun(el) {
   const lvl = levelFor(latest, t);
   const charter = m.charterByVersion.get(cp.latest?.body.charter_version ?? 1) ?? m.latestCharter;
   const report = m.reportFor(cp);
-  put(el, h("h3", { style: "margin:16px 0 6px" }, `${cp.id} · ${cp.trigger === "restart" ? TRIGGER_TITLES.restart : (m.stageOf(cp.stage)?.title ?? TRIGGER_TITLES[cp.trigger] ?? cp.trigger)} `, h("span", { class: `chip ${lvl === "not scored" ? "none" : lvl}` }, latest === null ? "not scored" : `${lvl === "ok" ? "on course" : lvl} ${fmt(latest)}`)));
+  put(el, h("h3", { style: "margin:16px 0 6px" }, `${cp.id} · ${cp.trigger === "restart" ? TRIGGER_TITLES.restart : (m.stageOf(cp.stage)?.title ?? TRIGGER_TITLES[cp.trigger] ?? cp.trigger)} `, h("span", { class: `chip ${lvl === "not scored" ? "none" : lvl}` }, latest === null ? "Not scored" : `${LEVEL_WORD[lvl] ?? lvl} ${fmt(latest)}`)));
   if (report) put(el, h("div", { class: "ws-sec" }, h("div", { class: "note" }, "The worker says"), h("div", {}, report.body.summary), ...(report.body.deviations ?? []).map((d) => h("div", { class: "note" }, `Deviation: ${d}`))));
   if (cp.latest) {
     const b = cp.latest.body;
@@ -692,37 +723,43 @@ function paneRun(el) {
         ...scores.flatMap(([d, v], i) => [h("span", { class: d === top[0] ? "hit" : "" }, `${d} ${fmt(v)}`), i < 3 ? h("span", {}, ", ") : null]).filter(Boolean),
       ),
       h("div", { class: "ws-drift-scale" },
-        h("span", { class: "seg ok", style: `width:${t.warn * 100}%` }, "on course"),
-        h("span", { class: "seg warn", style: `width:${(t.pause - t.warn) * 100}%` }, `warn ${fmt(t.warn)}`),
-        h("span", { class: "seg pause", style: `width:${(1 - t.pause) * 100}%` }, `pause ${fmt(t.pause)}`),
+        h("span", { class: "seg ok", style: `width:${t.warn * 100}%` }, "On course"),
+        h("span", { class: "seg warn", style: `width:${(t.pause - t.warn) * 100}%` }, `Warning ${fmt(t.warn)}`),
+        h("span", { class: "seg pause", style: `width:${(1 - t.pause) * 100}%` }, `Paused ${fmt(t.pause)}`),
         h("span", { class: "pin", style: `left:${Math.min(99, latest * 100)}%` }),
       ),
       h("div", { class: "s" }, `${top[0][0].toUpperCase()}${top[0].slice(1)} sets the score. ${lvl === "pause" ? "At or above the pause level, so the job waits for you." : lvl === "warn" ? "At or above the warn level, so the worker got a note with the finding." : "Below the warn level, so the job goes on."}`),
       keep(h("details", { class: "ws-how" }, h("summary", {}, "How each dimension is scored"),
         h("ul", {},
-          h("li", {}, `A separate Claude model, ${cp.latest.body.judge_model === "scripted-watcher" ? "here a scripted stand-in" : cp.latest.body.judge_model}, with no tools, reads the evidence of this stage as data: the stage report, the files changed, the check results and the ledger entries since the last checkpoint. It never sees the worker's reasoning.`),
-          h("li", {}, "It scores each dimension from 0, on course, to 1, off course, against the charter's rules for that dimension. 0.5 means it cannot tell."),
+          h("li", {}, `A separate model reviews each stage. No tools. Here: ${cp.latest.body.judge_model === "scripted-watcher" ? "a scripted stand-in" : cp.latest.body.judge_model}.`),
+          h("li", {}, "Each dimension: 0 on course, 1 off course. 0.5 = unsure."),
           h("li", {}, "Every finding names one rule and cites the ledger entries that show it. A finding with no entry is dropped."),
           h("li", {}, "The overall drift is the highest of the four, not the average, so one dimension far off course is enough to warn or pause."),
           h("li", {}, "When you add a rule, every scored checkpoint of the branch is scored again under it, and both scores are kept."),
         )), "how"),
     );
-    put(el, h("div", { class: "note" }, `Why this score${cp.latest.type === "rescore" ? `, after the rules changed (charter version ${b.charter_version})` : ""}.`), sum, dims);
+    // A score given again after a rule change says so inside the box; a first score needs no heading.
+    if (cp.latest.type === "rescore") sum.prepend(h("div", { class: "s" }, `Scored again after the rules changed, under charter version ${b.charter_version}.`));
+    put(el, sum, dims);
     if (cp.rescores.length && cp.first) put(el, h("p", { class: "note" }, `First score ${fmt(cp.first.body.overall)}, now ${fmt(latest)}. Both are kept in the ledger.`));
   } else put(el, h("p", { class: "note" }, cp.firstRecord?.body.message ?? "This checkpoint is not scored yet."));
   if (cp.checks.length) put(el, h("div", { class: "note", style: "margin:8px 0" }, cp.checks.map((c) => `${c.body.status === "passed" ? "✓" : "✗"} ${c.body.check}`).join(" · ")));
 
   const active = j.status !== "done" && j.status !== "stopped" && j.status !== "failed";
-  // Add a rule, scored again.
-  const dim = h("select", { "aria-label": "Dimension" }, DIMENSIONS.map((d) => h("option", { value: d, selected: d === "scope" ? true : null }, d)));
-  const ruleText = h("input", { type: "text", placeholder: "Never try to change legacy/, not even to keep it loading.", "aria-label": "A new rule" });
-  put(el, h("div", { class: "ws-sec" }, h("h3", {}, "Add a rule and score again"), h("p", { class: "sub" }, "A new charter version. Every scored checkpoint of this branch is scored again under it, and both scores are kept."), h("div", { class: "ws-form" }, h("div", { class: "ws-pairs", style: "grid-template-columns:110px 1fr" }, dim, ruleText), h("button", { class: "btn", type: "button", disabled: state.busy ? true : null, onclick: () => act({ kind: "rule", dimension: dim.value, text: ruleText.value || ruleText.placeholder }) }, state.busy ? "Scoring…" : "Add the rule"))));
-  // Restart from here.
+  // Restart from this checkpoint with a rule for the new branch, then add a rule to this branch and score again.
   const win = restartWindow(j);
+  const ruleForm = (label, button, send) => {
+    const d = h("select", { "aria-label": "What the rule is about" }, DIMENSIONS.map((x) => h("option", { value: x, selected: x === "scope" ? true : null }, x)));
+    const t = h("input", { type: "text", placeholder: "For example: never change legacy/, not even to keep it loading.", "aria-label": label });
+    const go = h("button", { class: "btn", type: "button", disabled: true, onclick: () => send(d.value, t.value.trim()) }, button);
+    t.addEventListener("input", () => (go.disabled = state.busy || t.value.trim().length < 5));
+    return h("div", { class: "ws-form" }, h("div", { class: "ws-pairs", style: "grid-template-columns:110px 1fr" }, d, t), go);
+  };
   if (cp.safety === "safe_to_restart" && win.ok) {
-    const reason = h("input", { type: "text", placeholder: "Do not try to change legacy/. Report that it no longer loads.", "aria-label": "Why you restart", id: "ws-restart-reason" });
-    put(el, h("div", { class: "ws-sec" }, h("h3", {}, `Restart from ${cp.id}`), h("p", { class: "sub" }, `A new branch from the files of ${cp.id} and the conversation up to it. Your reason becomes a rule. Branch ${cp.branch} is kept.`), h("div", { class: "ws-form" }, reason, h("button", { class: "btn", type: "button", disabled: state.busy ? true : null, onclick: () => act({ kind: "restart", from: cp.id, reason: reason.value || reason.placeholder }) }, "Restart from here"))));
-  } else if (cp.safety !== "safe_to_restart") put(el, h("p", { class: "note" }, `${cp.id} is record only: an action that cannot be undone happened before it, so a restart has to start from an earlier checkpoint.`));
+    put(el, h("div", { class: "ws-sec" }, h("h3", {}, `Restart from ${cp.id}`), h("p", { class: "sub" }, `Starts a new branch from the files of ${cp.id}, with a rule you write for it. Branch ${cp.branch} stays in the record.`), ruleForm("Rule for the new branch", `Restart from ${cp.id}`, (dimension, reason) => act({ kind: "restart", from: cp.id, reason, dimension }))));
+  } else if (cp.safety !== "safe_to_restart") put(el, h("p", { class: "note" }, `Cannot restart from ${cp.id}. A step that cannot be undone came before it.`));
+  // A Claude Code job that ended takes only a restart; the other workers can still score the record again.
+  if (active || workerOf(j) !== "claude-code") put(el, h("div", { class: "ws-sec" }, h("h3", {}, "Add a rule and score again"), h("p", { class: "sub" }, `Every scored checkpoint of branch ${cp.branch} is scored again under the new rule, and both scores are kept.${active ? " The job goes on under it." : ""}`), ruleForm("A new rule", state.busy ? "Scoring…" : "Add the rule", (dimension, text) => act({ kind: "rule", dimension, text }))));
   if (!active) put(el, h("p", { class: "note" }, win.note || "The job has ended. You can still restart it from a checkpoint: it starts a new branch from there."));
 }
 
@@ -734,7 +771,7 @@ function paneRules(el) {
   put(el, h("p", { class: "note" }, `Charter version ${c.version} is in force. `, h("button", { class: "link", type: "button", onclick: () => openFile(".candor/charter.md") }, "Open charter.md")));
   for (const d of DIMENSIONS) {
     const own = c.drift_rules.filter((r) => r.dimension === d);
-    if (own.length) put(el, h("div", { class: "ws-sec" }, h("h3", {}, d[0].toUpperCase() + d.slice(1)), h("ul", { class: "plain" }, own.map((r) => h("li", {}, r.text, r.source === "restart" ? h("span", { class: "note" }, " · lesson of a restart") : r.id.startsWith("added-") ? h("span", { class: "note" }, " · added during the run") : null)))));
+    if (own.length) put(el, h("div", { class: "ws-sec" }, h("h3", {}, d[0].toUpperCase() + d.slice(1)), h("ul", { class: "plain" }, own.map((r) => h("li", {}, r.text, r.source === "restart" ? h("span", { class: "note" }, " · from restart") : r.id.startsWith("added-") ? h("span", { class: "note" }, " · added during the run") : null)))));
   }
   const changes = j.entries.filter((e) => e.type === "rule_change");
   put(el, h("h3", {}, "How the rules changed"), changes.length ? h("ul", { class: "plain" }, changes.map((e) => h("li", {}, `v${e.body.from_version} → v${e.body.version}: ${e.body.rule?.text}`))) : h("p", { class: "note" }, "No rule was added yet. Add one from a checkpoint on the Run tab."));
@@ -745,27 +782,17 @@ function paneRules(el) {
 async function paneLedger(el) {
   const j = state.job;
   const box = h("p", {}, "Checking the chain…");
-  put(el, h("p", { class: "note" }, "Every event, decision, score, rule change and restart, in order. Each entry holds the hash of the one before. The same format as a local Candor run."), box);
+  put(el, h("p", { class: "note" }, "Every event, in order. Same format as a local Candor run."), box);
   const rows = j.entries.filter((e) => e.type !== "anchor" && !(e.type === "check_result" && e.body.check === "budget"));
-  put(el, h("div", { class: "tablewrap" }, h("table", {}, h("thead", {}, h("tr", {}, h("th", {}, "#"), h("th", {}, "Actor"), h("th", {}, "What happened"))), h("tbody", {}, rows.map((e) => h("tr", {}, h("td", { class: "mono" }, String(e.seq)), h("td", {}, e.actor), h("td", {}, describe(e))))))));
+  // Who wrote each entry, in plain words. The daemon sets this field, never the caller.
+  const BY = { operator: "you", candord: "Candor", worker: "worker", watcher: "watcher" };
+  // The time in the reader's own clock; the exact UTC time is on hover.
+  const time = (ts) => (ts ? new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "");
+  put(el, h("div", { class: "tablewrap" }, h("table", {}, h("thead", {}, h("tr", {}, h("th", {}, "#"), h("th", {}, "Time"), h("th", {}, "By"), h("th", {}, "Event"))), h("tbody", {}, rows.map((e) => h("tr", {}, h("td", { class: "mono" }, String(e.seq)), h("td", { class: "mono", title: e.ts ?? "" }, time(e.ts)), h("td", { title: e.actor }, BY[e.actor] ?? e.actor), h("td", {}, describe(e))))))));
   // The view returns the entries parsed. Their canonical JSON is the stored line, so the chain is checked on it.
   const lines = j.entries.map((e) => canonicalLine(e));
   const result = await verifyChain(lines);
-  const tamper = h("div", { class: "ws-tamper" });
-  // Change one byte of a copy, in this browser only, and check the chain again, so the reader sees it fail.
-  const tryIt = async () => {
-    const at = j.entries.findIndex((e) => e.type === "drift_score" || (e.type === "tool_intent" && e.body.decision !== "allow"));
-    const i = at >= 0 ? at : Math.floor(lines.length / 2);
-    const line = lines[i];
-    const pos = line.indexOf('"body":{') + 12;
-    const k = line.slice(pos).search(/[a-z]/) + pos;
-    const changed = [...lines];
-    changed[i] = `${line.slice(0, k)}${line[k] === "a" ? "b" : "a"}${line.slice(k + 1)}`;
-    const after = await verifyChain(changed);
-    clear(tamper).append(h("p", {}, h("b", {}, `You changed one byte of entry ${j.entries[i].seq}, a ${j.entries[i].type.replace("_", " ")} entry, in a copy in your browser. `), h("span", { class: `state ${after.ok ? "ok" : "bad"}` }, after.ok ? "The chain still checks, which would be a fault." : after.reason)), h("p", { class: "note" }, "The record on the server is unchanged. The receipt names the head hash, so an edit anywhere before it shows."));
-  };
-  put(tamper, h("button", { class: "btn", type: "button", onclick: tryIt }, "Change one byte, and check again"));
-  clear(box).append(h("span", { class: `state ${result.ok ? "ok" : "bad"}` }, result.ok ? `Chain intact: ${result.entries} entries, ${j.anchors.length} anchors, checked in your browser.` : result.reason), tamper);
+  clear(box).append(h("span", { class: `state ${result.ok ? "ok" : "bad"}` }, result.ok ? `Chain intact: ${result.entries} entries, checked in your browser.` : result.reason));
 }
 
 /** One archive with the files `candor verify` reads: the ledger, the anchors, the blobs and the receipt. */
@@ -821,20 +848,26 @@ function openMenu(id, x, y) {
   const head = h("div", { class: "ws-menu-head" }, `Checkpoint ${id}`);
   const parts = [head];
   if (target && win.ok) {
-    const reason = h("input", { type: "text", id: "ws-menu-reason", "aria-label": "Why you restart", placeholder: "Do the stages in order and keep every test case." });
-    const go = h("button", { class: "btn primary", type: "button", disabled: state.busy ? true : null, onclick: () => {
-      const text = reason.value.trim() || reason.placeholder;
+    const reason = h("input", { type: "text", id: "ws-menu-reason", "aria-label": "Rule for the new branch", placeholder: "Do the stages in order." });
+    const dim = h("select", { "aria-label": "What the rule is about" }, DIMENSIONS.map((d) => h("option", { value: d, selected: d === "plan" ? true : null }, d)));
+    const go = h("button", { class: "btn primary", type: "button", disabled: true, onclick: () => {
       closeMenu();
-      act({ kind: "restart", from: target.id, reason: text });
+      act({ kind: "restart", from: target.id, reason: reason.value.trim(), dimension: dim.value });
     } }, `Restart from ${target.id}`);
-    reason.addEventListener("keydown", (e) => e.key === "Enter" && go.click());
+    // The restart needs a rule, so the button waits until there is one.
+    reason.addEventListener("input", () => (go.disabled = state.busy || reason.value.trim().length < 5));
+    reason.addEventListener("keydown", (e) => e.key === "Enter" && !go.disabled && go.click());
+    const rulesNow = charterNow()?.drift_rules.length ?? 0;
     parts.push(
       h("div", { class: "ws-menu-form" },
-        h("div", { class: "s" }, target === cp ? `A new branch from the files of ${cp.id} and the conversation up to it. Your reason becomes a rule.` : `${cp.id} is record only: a step that cannot be undone came before it. The last checkpoint you can restart from is ${target.id}.`),
-        reason, go, win.note ? h("div", { class: "s" }, win.note) : null),
+        h("div", { class: "s" }, target === cp ? `Starts a new branch from the files of ${cp.id}. The first branch stays in the record.` : `Cannot restart from ${cp.id}. Use ${target.id}.`),
+        h("label", { class: "s", for: "ws-menu-reason" }, "Rule for the new branch"),
+        h("div", { class: "ws-menu-rule" }, dim, reason),
+        h("div", { class: "s" }, `The worker is told it, and the watcher scores against it, with the ${rulesNow} rule${rulesNow === 1 ? "" : "s"} already in the charter. `, h("button", { class: "link", type: "button", onclick: () => { closeMenu(); openFile(".candor/charter.md"); } }, "See the charter")),
+        go, win.note ? h("div", { class: "s" }, win.note) : null),
     );
-  } else parts.push(h("div", { class: "ws-menu-form" }, h("div", { class: "s" }, !win.ok ? win.note : `${cp.id} is record only, and no earlier checkpoint on branch ${cp.branch} can be restarted from.`)));
-  parts.push(h("button", { type: "button", role: "menuitem", class: "ws-menu-item", onclick: () => { closeMenu(); select(id); } }, h("span", {}, "Why it scored what it did")));
+  } else parts.push(h("div", { class: "ws-menu-form" }, h("div", { class: "s" }, !win.ok ? win.note : `Cannot restart from ${cp.id} or any earlier checkpoint on branch ${cp.branch}.`)));
+  parts.push(h("button", { type: "button", role: "menuitem", class: "ws-menu-item", onclick: () => { closeMenu(); select(id); } }, h("span", {}, "Show its score")));
   const menu = h("div", { class: "ws-menu", role: "menu", "aria-label": `Actions of ${id}` }, ...parts);
   menu.style.left = `${Math.min(x, window.innerWidth - 320)}px`;
   menu.style.top = `${Math.min(y, window.innerHeight - 240)}px`;

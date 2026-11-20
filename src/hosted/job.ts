@@ -474,14 +474,14 @@ function lineage(job: JobState, branch: string): CheckpointRecord[] {
 }
 
 /** Restart from a checkpoint as a fork: a new branch from its files and its point in the conversation, with the reason as a rule. */
-export async function restartFrom(job: JobState, deps: JobDeps, from: string, reason: string): Promise<void> {
+export async function restartFrom(job: JobState, deps: JobDeps, from: string, reason: string, dimension: "goal" | "scope" | "plan" | "evidence" = "plan"): Promise<void> {
   const record = job.checkpoints.find((c) => c.id === from);
   if (!record) throw new Error(`There is no checkpoint ${from}.`);
   if (record.safety !== "safe_to_restart") throw new Error(`${from} is record only: an action that cannot be undone happened before it.`);
   const ledger = ledgerOf(job, deps.now);
   const old = charterOf(job);
   const nextBranch = String.fromCharCode(Math.max(...job.checkpoints.map((c) => c.branch.charCodeAt(0))) + 1);
-  const lesson = { id: `restart-${nextBranch.toLowerCase()}`, dimension: "plan" as const, source: "restart" as const, text: `Restart from ${from}: ${reason.trim().slice(0, 280)}` };
+  const lesson = { id: `restart-${nextBranch.toLowerCase()}`, dimension, source: "restart" as const, text: `Restart from ${from}: ${reason.trim().slice(0, 280)}` };
   const next: Charter = { ...old, version: old.version + 1, drift_rules: [...old.drift_rules, lesson] };
   job.charters.push(next);
   if (job.pending) job.pending = null;

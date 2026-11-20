@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-const projects = JSON.parse(readFileSync("site/projects.json", "utf8")).projects as { id: string; samples: { file: string; code: string }[] }[];
+const projects = JSON.parse(readFileSync("site/projects.json", "utf8")).projects as { id: string; samples: { file: string; code: string }[]; files?: Record<string, { from: string; text: string }> }[];
 
 describe("the project pages of the workspace", () => {
   it("copies each code sample from the file it names, so a sample cannot go stale", () => {
@@ -11,5 +11,9 @@ describe("the project pages of the workspace", () => {
         const source = readFileSync(s.file, "utf8");
         for (const part of s.code.split("\n")) expect(source, `${p.id}: ${s.file}`).toContain(part);
       }
+  });
+
+  it("lists the files of each project as they are in the repository (npm run projects:render)", () => {
+    for (const p of projects) for (const [path, f] of Object.entries(p.files ?? {})) expect(readFileSync(f.from, "utf8"), `${p.id}: ${path}`).toBe(f.text);
   });
 });

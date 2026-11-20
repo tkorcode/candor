@@ -193,43 +193,43 @@ export function describe(entry) {
   const s = (v) => (typeof v === "string" ? v : "");
   switch (entry.type) {
     case "charter_approved":
-      return `The charter ${s(b.charter_id)} version ${b.version} was approved. Its hash is the first entry of the record.`;
+      return `Charter approved (version ${b.version}).`;
     case "charter_review":
-      return `The charter review was recorded, with ${Array.isArray(b.items) ? b.items.length : 0} items and how each was resolved.`;
+      return `Charter review saved (${Array.isArray(b.items) ? b.items.length : 0} item${Array.isArray(b.items) && b.items.length === 1 ? "" : "s"}).`;
     case "run_start":
-      return b.hosted ? `The job started in the workspace, ${b.mode === "live" ? "with a Claude model and file tools" : "scripted"}. Nothing in it runs the code of the project.` : "The run started. The check scripts and the workspace were captured before the worker began.";
+      return b.hosted ? `Job started${b.mode === "live" ? ", Claude API" : ", scripted"}.` : "Run started.";
     case "session_start":
       return `A worker session started${b.model ? ` on ${s(b.model)}` : ""}${b.claude_code_version ? `, Claude Code ${s(b.claude_code_version)}` : ""}.`;
     case "tool_intent":
-      return `${b.decision === "allow" ? "Allowed" : b.decision === "hold" ? "Held for the operator" : "Denied"}: ${s(b.summary) || s(b.tool)}${b.rule ? ` (rule: ${s(b.rule)})` : ""}.`;
+      return `${b.decision === "allow" ? "Allowed" : b.decision === "hold" ? "Needs your approval" : "Denied"}: ${s(b.summary) || s(b.tool)}${b.rule ? ` (rule: ${s(b.rule)})` : ""}.`;
     case "tool_result":
       return `${s(b.tool) || "A tool"} ${b.failed ? "failed" : "finished"}${b.output_excerpt ? `: ${s(b.output_excerpt).slice(0, 140)}` : "."}`;
     case "stage_report":
       return b.accepted === false ? `A stage report was refused: ${s(b.reason)}` : `The worker reported stage ${s(b.stage)} ${b.done ? "done" : "not done"}${b.summary ? `: ${s(b.summary).slice(0, 160)}` : "."}`;
     case "checkpoint":
-      return `Checkpoint ${s(b.id)} taken (${s(b.trigger).replaceAll("_", " ")}), ${s(b.safety).replaceAll("_", " ")}. The head hash was anchored.`;
+      return `Checkpoint ${s(b.id)} saved.${b.safety === "safe_to_restart" ? "" : " Cannot restart here."}`;
     case "check_result":
       if (b.check === "budget") return b.event === "usage" ? `Spend reported: ${b.cost_usd} dollars, ${b.turns} turns.` : "A stretch of work started.";
-      if (b.check === "watcher_note") return "A watcher warning was delivered to the worker.";
+      if (b.check === "watcher_note") return "Warning sent. Job continues.";
       return `Check ${s(b.check)}${b.stage ? ` (stage ${s(b.stage)})` : ""}: ${s(b.status) || (b.ok === false ? "failed" : "ok")}${b.reason ? `. ${s(b.reason).slice(0, 140)}` : "."}`;
     case "drift_score":
-      return b.status === "scored" ? `The watcher scored ${s(b.checkpoint)}: drift ${b.overall}, level ${s(b.level)}.` : `Checkpoint ${s(b.checkpoint)} was not scored: ${s(b.message) || s(b.reason)}`;
+      return b.status === "scored" ? `${s(b.checkpoint)} scored ${b.overall}: ${({ ok: "on course", warn: "warning", pause: "paused" })[b.level] ?? s(b.level)}.` : `Checkpoint ${s(b.checkpoint)} was not scored: ${s(b.message) || s(b.reason)}`;
     case "rescore":
-      return b.status === "scored" ? `${s(b.checkpoint)} scored again under charter version ${b.charter_version}: drift ${b.overall}, level ${s(b.level)}. The first score is kept.` : `${s(b.checkpoint)} was not scored again: ${s(b.message) || s(b.reason)}`;
+      return b.status === "scored" ? `${s(b.checkpoint)} rescored ${b.overall} under charter version ${b.charter_version}.` : `${s(b.checkpoint)} was not scored again: ${s(b.message) || s(b.reason)}`;
     case "rule_change":
       return `Rule ${s(b.rule?.id)} added (${s(b.rule?.dimension)}): ${s(b.rule?.text)} Charter version ${b.from_version} to ${b.version}.`;
     case "restart":
       return `Restart from ${s(b.from)} onto branch ${s(b.to_branch)}. Reason: ${s(b.reason)}`;
     case "human_action":
-      return entry.actor === "operator" ? `The operator chose ${s(b.action)}${b.accepted ? "" : " (refused)"}${b.summary ? `: ${s(b.summary)}` : ""}.` : `An operator action (${s(b.action)}) arrived without the secret and was refused.`;
+      return entry.actor === "operator" ? `The operator chose ${s(b.action)}${b.accepted ? "" : " (refused)"}${b.summary ? `: ${s(b.summary)}` : ""}.` : `Fake approval refused (${s(b.action)}).`;
     case "effect":
       return `${b.irreversible ? "Irreversible effect" : "Effect"}: ${s(b.summary)}${b.performed ? ", performed" : ""}${b.blocked ? ", blocked" : ""}.`;
     case "acceptance_result":
-      return `Acceptance on the final state, ${s(b.criterion)}: ${s(b.status)}.`;
+      return `${s(b.criterion)}: ${b.status === "verified" ? "verified" : b.status === "failed" ? "failed" : "not verified"}.`;
     case "check_strength":
-      return `Check ${s(b.check)} is ${s(b.status)} against its planted fault.`;
+      return b.status === "proven" ? `Check ${s(b.check)} tested.` : `Check ${s(b.check)} missed a fault we planted. It does not count.`;
     case "anchor":
-      return `The head hash at entry ${b.anchored_seq ?? ""} was copied outside the run folder.`;
+      return "Ledger fingerprint saved.";
     case "heartbeat":
       return b.recovered ? "The daemon came back after a gap." : "The daemon started.";
     case "hook_event":

@@ -13,7 +13,7 @@ import { verifyChain, verifyReceiptSignature } from "./verify.js";
 const $ = (id) => document.getElementById(id);
 /** Appends children, leaving out the empty ones, as h() does. */
 const put = (el, ...nodes) => el.append(...nodes.flat().filter((n) => n !== null && n !== undefined && n !== false));
-const state = { draft: null, input: null, files: {}, review: [], job: null, tab: "run", selected: null, open: null, polling: 0, seeded: false, fault: "", live: true, worker: "api", workers: { claude_code: false, live: false }, busy: false, error: "" };
+const state = { draft: null, input: null, files: {}, review: [], job: null, tab: "run", selected: null, open: null, polling: 0, seeded: false, fault: "", live: true, worker: "api", workers: { claude_code: false, live: false }, openDims: {}, busy: false, error: "" };
 const SUGGESTED = "Move the invoices service from CommonJS to ES modules, with no change to its public functions.";
 const HOLDS = [
   { value: "delete_file *", label: "Deleting any file" },
@@ -40,6 +40,8 @@ async function startPage() {
   try {
     const first = await post("api/charter/review", { input: {} });
     state.files = first.files;
+    state.workers = await get("api/workers").catch(() => ({ claude_code: false, live: false }));
+    state.worker = state.workers.claude_code ? "claude-code" : state.workers.live ? "api" : "scripted";
   } catch {
     clear($("stream")).append(h("div", { class: "ws-empty" }, h("h1", {}, "The workspace is not running here"), h("p", {}, "On a laptop, run npm run build and then npm run site:serve. The hosted site runs it at /workspace.html.")));
     return;
@@ -63,8 +65,8 @@ async function draftCharter(goal) {
     state.input = structuredClone(out.input);
     state.review = out.review;
     state.live = out.live;
-    state.workers = await get("api/workers").catch(() => ({ claude_code: false, live: out.live }));
-    state.worker = state.workers.claude_code ? "claude-code" : out.live ? "api" : "scripted";
+    // The worker the reader picked is kept; a draft only fills in what the server can run.
+    if (!state.workers.live && out.live) state.workers = { ...state.workers, live: true };
     state.goalAsked = goal;
   } catch (e) {
     state.error = e.message;
@@ -102,7 +104,7 @@ async function approve() {
   } catch (e) {
     state.error = e.message;
     state.busy = false;
-    drawPane();
+    draw();
   }
 }
 
@@ -153,10 +155,12 @@ const WORKER_LABEL = {
   api: "live: a Claude model with file tools, not Claude Code",
   scripted: "scripted: no model is called",
 };
+const WORKER_SHORT = { "claude-code": "Claude Code · Sonnet 5.5 · watcher Opus 5.5", api: "Claude through the API · Haiku 5.5", scripted: "Scripted · no model" };
 /** A deletion cannot be undone inside the job. Anything else waits because the charter says so. */
 const isDelete = (summary) => /^(delete_file |Bash: (git )?rm )/.test(String(summary));
 
 function draw() {
+  drawAlert();
   drawTree();
   drawTop();
   drawStream();
@@ -221,7 +225,7 @@ function drawTop() {
   const charter = charterNow();
   const reported = j.entries.filter((e) => e.type === "stage_report" && (e.branch ?? "A") === j.branch).length;
   const word = { running: "Running", held: "Waiting for you", paused: "Paused by the watcher", done: "Done", stopped: "Stopped", failed: "Failed" }[j.status];
-  put(top, [h("span", {}, h("span", { class: `dot ${j.status}` }), h("b", {}, word)), j.status === "running" || j.status === "held" ? h("span", {}, `Stage ${Math.min(reported + 1, charter.stages.length)} of ${charter.stages.length}`) : null, h("span", {}, `branch ${j.branch}`), h("span", { class: "grow" }), h("span", {}, `${j.turns} turns · ${money(j.cost.worker + j.cost.watcher)}`)].filter(Boolean));
+  put(top, [h("span", {}, h("span", { class: `dot ${j.status}` }), h("b", {}, word)), j.status === "running" || j.status === "held" ? h("span", {}, `Stage ${Math.min(reported + 1, charter.stages.length)} of ${charter.stages.length}`) : null, h("span", {}, `branch ${j.branch}`), h("span", { class: "ws-model" }, WORKER_SHORT[workerOf(j)]), h("span", { class: "grow" }), h("span", {}, `${j.turns} turns · ${money(j.cost.worker + j.cost.watcher)}`)].filter(Boolean));
 }
 
 /** The job as a stream: what the worker did, what Candor decided, each checkpoint and score. */
@@ -323,7 +327,47 @@ function drawComposer() {
   const text = h("textarea", { "aria-label": "Describe the job", rows: 2, placeholder: SUGGESTED });
   text.value = state.goalAsked ?? SUGGESTED;
   const go = h("button", { class: "btn primary", type: "button", disabled: state.busy ? true : null, onclick: () => draftCharter(text.value.trim() || SUGGESTED) }, state.busy ? "Drafting…" : state.draft ? "Draft again" : "Draft the charter");
-  put(el, h("div", { class: "ws-box" }, text, h("div", { class: "row" }, go)), h("div", { class: "ws-hint" }, "The project is fixed in this demo: a small invoices service in CommonJS. Your words shape the charter. ", state.error ? h("span", { class: "ws-no" }, state.error) : null));
+  put(el, h("div", { class: "ws-box" }, text, h("div", { class: "row" }, workerPicker(), h("span", { style: "flex:1" }), go)), h("div", { class: "ws-hint" }, "Your words shape the charter. The project and its checks come from the folder on the left."));
+}
+
+/** The worker, picked the way a model is picked in the Claude app. The other two are there if one does not work. */
+function workerPicker() {
+  const options = [
+    ["claude-code", "Claude Code · Sonnet 5.5", state.workers.claude_code],
+    ["api", "Claude through the API · Haiku 5.5", state.workers.live],
+    ["scripted", "Scripted · no model", true],
+  ];
+  const pick = h("select", { class: "ws-model", "aria-label": "Who does the work", id: "ws-worker" }, options.map(([v, t, ok]) => h("option", { value: v, selected: state.worker === v ? true : null, disabled: ok ? null : true }, ok ? t : `${t} (not set up here)`)));
+  pick.addEventListener("change", () => {
+    state.worker = pick.value;
+    drawPane();
+  });
+  return pick;
+}
+
+/** A failure is shown at the top of the job, in red, with what to do next. */
+function drawAlert() {
+  const el = clear($("alert"));
+  const j = state.job;
+  const failed = j?.status === "failed";
+  const message = failed ? j.statusReason || "The job failed." : state.error;
+  if (!message) return;
+  const again = (worker) => {
+    state.worker = worker;
+    state.job = null;
+    state.error = "";
+    history.replaceState(null, "", location.pathname);
+    approve();
+  };
+  const canRetry = Boolean(state.input);
+  put(el, h("div", { class: "ws-alert", role: "alert" },
+    h("div", {}, h("b", {}, failed ? "The job failed. " : "Something went wrong. "), message),
+    h("div", { class: "acts" },
+      canRetry && failed ? h("button", { class: "btn primary", type: "button", onclick: () => again(j.worker === "claude-code" ? "claude-code" : workerOf(j)) }, "Run it again") : null,
+      canRetry && failed && j.worker === "claude-code" && state.workers.live ? h("button", { class: "btn", type: "button", onclick: () => again("api") }, "Run it with Claude through the API") : null,
+      !failed ? h("button", { class: "btn", type: "button", onclick: () => { state.error = ""; draw(); } }, "Dismiss") : null,
+      !canRetry && failed ? h("button", { class: "btn", type: "button", onclick: () => (location.href = location.pathname) }, "New job") : null),
+  ));
 }
 
 function drawNeeds() {
@@ -443,7 +487,10 @@ function charterEditor(el) {
   fault.addEventListener("change", () => (state.fault = fault.value));
   const choice = (value, label, note, available) => {
     const box = h("input", { type: "radio", name: "worker", value, checked: state.worker === value ? true : null, disabled: available ? null : true });
-    box.addEventListener("change", () => (state.worker = value));
+    box.addEventListener("change", () => {
+      state.worker = value;
+      drawComposer();
+    });
     return h("label", { style: "display:flex;gap:8px;align-items:flex-start;color:var(--fg)" }, box, h("span", {}, label, h("br"), h("span", { class: "note" }, available ? note : `${note} Not set up on this copy of the site.`)));
   };
   const workers = [
@@ -491,7 +538,7 @@ function paneRun(el) {
     h("span", {}, h("span", { class: "ws-key round" }), "Can restart from here, as a new branch"),
     h("span", {}, h("span", { class: "ws-key square" }), "Record only: a step that cannot be undone came before it"),
   );
-  put(el, h("h3", { style: "margin:0 0 6px" }, "Run map"), legend, wrap, h("p", { class: "note" }, "Click a checkpoint to see why it scored what it did. Right-click it for its actions, such as restarting from there."));
+  put(el, h("h3", { style: "margin:0 0 6px" }, "Run map"), legend, wrap, h("p", { class: "note" }, "The number in each checkpoint is its drift: the highest of its goal, scope, plan and evidence scores. Click a checkpoint for why. Right-click it to restart from there."));
   if (m.checkpoints.length)
     requestAnimationFrame(() => {
       renderMap(mapBox, m, { thresholds: t, selected: state.selected, suggestion: null, onSelect: select, onMenu: (id, x, y) => openMenu(id, x, y), stageTitle: (cp) => (cp.trigger === "restart" ? TRIGGER_TITLES.restart : (m.stageOf(cp.stage)?.title ?? TRIGGER_TITLES[cp.trigger] ?? cp.trigger)), noteSent: (cp) => j.entries.some((e) => e.type === "check_result" && e.body.check === "watcher_note" && e.body.checkpoint === cp.id) });
@@ -521,17 +568,46 @@ function paneRun(el) {
       const dl = levelFor(v, t);
       const own = findings.filter((f) => dimOf(f) === d);
       const rules = (charter?.drift_rules ?? []).filter((r) => r.dimension === d);
-      const row = h("details", { class: `dim${own.length ? " flagged" : ""}`, ...(own.length ? { open: true } : {}) },
+      // The pane is drawn again on every update, so whether a dimension is open is kept per checkpoint.
+      const key = `${cp.id}:${d}`;
+      const isOpen = key in state.openDims ? state.openDims[key] : own.length > 0;
+      const row = h("details", { class: `dim${own.length ? " flagged" : ""}`, ...(isOpen ? { open: true } : {}) },
         h("summary", {}, h("div", { class: "dim-row" }, h("div", {}, h("div", { class: "dim-name" }, d[0].toUpperCase() + d.slice(1)), h("div", { class: "dim-q" }, QUESTION[d])), h("span", { class: "track" }, h("span", { class: "fill", style: `width:${Math.round(v * 100)}%;background:var(--${dl === "ok" ? "ok" : dl}-mark)` }), h("span", { class: "tick", style: `left:${t.warn * 100}%` }), h("span", { class: "tick", style: `left:${t.pause * 100}%` })), h("span", { class: "dim-v" }, fmt(v)))),
         ...own.map(finding),
         own.length ? null : h("div", { class: "dim-body" }, h("div", {}, "The watcher found nothing against these rules here.")),
         h("div", { class: "dim-body" }, h("div", {}, h("div", { class: "k" }, rules.length === 1 ? "The rule" : "The rules"), rules.length ? h("ul", { class: "dim-rules" }, rules.map((r) => h("li", {}, r.text))) : h("div", { class: "note" }, "No rule on this dimension."))),
       );
+      row.addEventListener("toggle", () => (state.openDims[key] = row.open));
       dims.append(row);
     }
     const loose = findings.filter((f) => !dimOf(f));
     if (loose.length) dims.append(h("details", { class: "dim flagged", open: true }, h("summary", {}, h("div", { class: "dim-name" }, "Other findings")), ...loose.map(finding)));
-    put(el, h("div", { class: "note" }, `Why this score${cp.latest.type === "rescore" ? `, after the rules changed (charter version ${b.charter_version})` : ""}. ${cp.latest.body.judge_model === "scripted-watcher" ? "Scripted watcher." : `Watcher ${cp.latest.body.judge_model}.`}`), dims);
+    // The calculation itself: the overall drift is the highest of the four dimensions, compared with the two levels.
+    const scores = DIMENSIONS.map((d) => [d, b.dimensions?.[d] ?? 0]);
+    const top = scores.reduce((a, c) => (c[1] > a[1] ? c : a));
+    const sum = h("div", { class: "ws-drift" },
+      h("div", { class: "ws-drift-eq" },
+        h("span", { class: "big" }, fmt(latest)),
+        h("span", {}, " = the highest of "),
+        ...scores.flatMap(([d, v], i) => [h("span", { class: d === top[0] ? "hit" : "" }, `${d} ${fmt(v)}`), i < 3 ? h("span", {}, ", ") : null]).filter(Boolean),
+      ),
+      h("div", { class: "ws-drift-scale" },
+        h("span", { class: "seg ok", style: `width:${t.warn * 100}%` }, "on course"),
+        h("span", { class: "seg warn", style: `width:${(t.pause - t.warn) * 100}%` }, `warn ${fmt(t.warn)}`),
+        h("span", { class: "seg pause", style: `width:${(1 - t.pause) * 100}%` }, `pause ${fmt(t.pause)}`),
+        h("span", { class: "pin", style: `left:${Math.min(99, latest * 100)}%` }),
+      ),
+      h("div", { class: "s" }, `${top[0][0].toUpperCase()}${top[0].slice(1)} sets the score. ${lvl === "pause" ? "At or above the pause level, so the job waits for you." : lvl === "warn" ? "At or above the warn level, so the worker got a note with the finding." : "Below the warn level, so the job goes on."}`),
+      h("details", { class: "ws-how" }, h("summary", {}, "How each dimension is scored"),
+        h("ul", {},
+          h("li", {}, `A separate Claude model, ${cp.latest.body.judge_model === "scripted-watcher" ? "here a scripted stand-in" : cp.latest.body.judge_model}, with no tools, reads the evidence of this stage as data: the stage report, the files changed, the check results and the ledger entries since the last checkpoint. It never sees the worker's reasoning.`),
+          h("li", {}, "It scores each dimension from 0, on course, to 1, off course, against the charter's rules for that dimension. 0.5 means it cannot tell."),
+          h("li", {}, "Every finding names one rule and cites the ledger entries that show it. A finding with no entry is dropped."),
+          h("li", {}, "The overall drift is the highest of the four, not the average, so one dimension far off course is enough to warn or pause."),
+          h("li", {}, "When you add a rule, every scored checkpoint of the branch is scored again under it, and both scores are kept."),
+        )),
+    );
+    put(el, h("div", { class: "note" }, `Why this score${cp.latest.type === "rescore" ? `, after the rules changed (charter version ${b.charter_version})` : ""}.`), sum, dims);
     if (cp.rescores.length && cp.first) put(el, h("p", { class: "note" }, `First score ${fmt(cp.first.body.overall)}, now ${fmt(latest)}. Both are kept in the ledger.`));
   } else put(el, h("p", { class: "note" }, cp.firstRecord?.body.message ?? "This checkpoint is not scored yet."));
   if (cp.checks.length) put(el, h("div", { class: "note", style: "margin:8px 0" }, cp.checks.map((c) => `${c.body.status === "passed" ? "✓" : "✗"} ${c.body.check}`).join(" · ")));
@@ -542,11 +618,12 @@ function paneRun(el) {
   const ruleText = h("input", { type: "text", placeholder: "Never try to change legacy/, not even to keep it loading.", "aria-label": "A new rule" });
   put(el, h("div", { class: "ws-sec" }, h("h3", {}, "Add a rule and score again"), h("p", { class: "sub" }, "A new charter version. Every scored checkpoint of this branch is scored again under it, and both scores are kept."), h("div", { class: "ws-form" }, h("div", { class: "ws-pairs", style: "grid-template-columns:110px 1fr" }, dim, ruleText), h("button", { class: "btn", type: "button", disabled: state.busy ? true : null, onclick: () => act({ kind: "rule", dimension: dim.value, text: ruleText.value || ruleText.placeholder }) }, state.busy ? "Scoring…" : "Add the rule"))));
   // Restart from here.
-  if (cp.safety === "safe_to_restart") {
+  const win = restartWindow(j);
+  if (cp.safety === "safe_to_restart" && win.ok) {
     const reason = h("input", { type: "text", placeholder: "Do not try to change legacy/. Report that it no longer loads.", "aria-label": "Why you restart", id: "ws-restart-reason" });
     put(el, h("div", { class: "ws-sec" }, h("h3", {}, `Restart from ${cp.id}`), h("p", { class: "sub" }, `A new branch from the files of ${cp.id} and the conversation up to it. Your reason becomes a rule. Branch ${cp.branch} is kept.`), h("div", { class: "ws-form" }, reason, h("button", { class: "btn", type: "button", disabled: state.busy ? true : null, onclick: () => act({ kind: "restart", from: cp.id, reason: reason.value || reason.placeholder }) }, "Restart from here"))));
-  } else put(el, h("p", { class: "note" }, `${cp.id} is record only: an action that cannot be undone happened before it, so a restart has to start from an earlier checkpoint.`));
-  if (!active) put(el, h("p", { class: "note" }, "The job has ended. A rule or a restart still works: a restart starts a new branch from that checkpoint."));
+  } else if (cp.safety !== "safe_to_restart") put(el, h("p", { class: "note" }, `${cp.id} is record only: an action that cannot be undone happened before it, so a restart has to start from an earlier checkpoint.`));
+  if (!active) put(el, h("p", { class: "note" }, win.note || "The job has ended. You can still restart it from a checkpoint: it starts a new branch from there."));
 }
 
 // ---- rules, ledger, receipt -----------------------------------------------------------------------------------
@@ -620,25 +697,49 @@ async function paneReceipt(el) {
   clear(sig).append(h("span", { class: `state ${s.ok ? "ok" : "bad"}` }, s.ok ? `Signature valid, key ${s.keyId.slice(0, 19)}…, checked in your browser.` : s.reason));
 }
 
-/** The actions of a checkpoint, opened by a right-click on the run map. */
+/** Whether a restart can still be asked for: always for the API and scripted workers, and for Claude Code until its container is shut down. */
+function restartWindow(j) {
+  if (j.restartableUntil === undefined || j.restartableUntil === null) return { ok: true, note: "" };
+  if (j.restartableUntil === 0) return { ok: false, note: "The container of this job has been shut down. Start a new job to try again." };
+  const left = Math.max(0, Math.round((j.restartableUntil - Date.now()) / 60000));
+  return left > 0 ? { ok: true, note: `The job has ended. You can restart it for about ${left} more minute${left === 1 ? "" : "s"}.` } : { ok: false, note: "The container of this job has been shut down. Start a new job to try again." };
+}
+
+/** The last checkpoint before this one that can still be restarted from, on the same branch. */
+function safeBefore(m, cp) {
+  return m.checkpoints.filter((c) => c.branch === cp.branch && c.seq < cp.seq && c.safety === "safe_to_restart").at(-1) ?? null;
+}
+
+/** The actions of a checkpoint, opened by a right-click on the run map: restart from it, or see why it scored. */
 function openMenu(id, x, y) {
   closeMenu();
-  const cp = model().byId.get(id);
-  if (!cp) return;
-  const canRestart = cp.safety === "safe_to_restart" && state.job && !["done", "stopped", "failed"].includes(state.job.status);
-  const item = (label, note, enabled, run) => h("button", { type: "button", role: "menuitem", class: "ws-menu-item", disabled: enabled ? null : true, onclick: () => { closeMenu(); run(); } }, h("span", {}, label), note ? h("span", { class: "s" }, note) : null);
-  const menu = h("div", { class: "ws-menu", role: "menu", "aria-label": `Actions of ${id}` },
-    h("div", { class: "ws-menu-head" }, `Checkpoint ${id}`),
-    item("Why it scored what it did", null, true, () => select(id)),
-    item("Restart from here, as a new branch", cp.safety === "safe_to_restart" ? (canRestart ? `Branch from the files of ${id}. Your reason becomes a rule.` : "The job has ended.") : "Record only: a step that cannot be undone came before it.", canRestart, () => {
-      select(id);
-      requestAnimationFrame(() => document.getElementById("ws-restart-reason")?.focus());
-    }),
-  );
-  menu.style.left = `${Math.min(x, window.innerWidth - 300)}px`;
-  menu.style.top = `${Math.min(y, window.innerHeight - 160)}px`;
+  const m = model();
+  const cp = m.byId.get(id);
+  if (!cp || !state.job) return;
+  const win = restartWindow(state.job);
+  const target = cp.safety === "safe_to_restart" ? cp : safeBefore(m, cp);
+  const head = h("div", { class: "ws-menu-head" }, `Checkpoint ${id}`);
+  const parts = [head];
+  if (target && win.ok) {
+    const reason = h("input", { type: "text", id: "ws-menu-reason", "aria-label": "Why you restart", placeholder: "Do the stages in order and keep every test case." });
+    const go = h("button", { class: "btn primary", type: "button", disabled: state.busy ? true : null, onclick: () => {
+      const text = reason.value.trim() || reason.placeholder;
+      closeMenu();
+      act({ kind: "restart", from: target.id, reason: text });
+    } }, `Restart from ${target.id}`);
+    reason.addEventListener("keydown", (e) => e.key === "Enter" && go.click());
+    parts.push(
+      h("div", { class: "ws-menu-form" },
+        h("div", { class: "s" }, target === cp ? `A new branch from the files of ${cp.id} and the conversation up to it. Your reason becomes a rule.` : `${cp.id} is record only: a step that cannot be undone came before it. The last checkpoint you can restart from is ${target.id}.`),
+        reason, go, win.note ? h("div", { class: "s" }, win.note) : null),
+    );
+  } else parts.push(h("div", { class: "ws-menu-form" }, h("div", { class: "s" }, !win.ok ? win.note : `${cp.id} is record only, and no earlier checkpoint on branch ${cp.branch} can be restarted from.`)));
+  parts.push(h("button", { type: "button", role: "menuitem", class: "ws-menu-item", onclick: () => { closeMenu(); select(id); } }, h("span", {}, "Why it scored what it did")));
+  const menu = h("div", { class: "ws-menu", role: "menu", "aria-label": `Actions of ${id}` }, ...parts);
+  menu.style.left = `${Math.min(x, window.innerWidth - 320)}px`;
+  menu.style.top = `${Math.min(y, window.innerHeight - 240)}px`;
   document.body.append(menu);
-  menu.querySelector("button:not([disabled])")?.focus();
+  (menu.querySelector("#ws-menu-reason") ?? menu.querySelector("button"))?.focus();
   setTimeout(() => {
     document.addEventListener("pointerdown", outside);
     document.addEventListener("keydown", escapeKey);

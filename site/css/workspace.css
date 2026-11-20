@@ -129,3 +129,26 @@ body.ws { overflow: hidden; }
 .ws-candor .dim-q { font-size: 12px; }
 .dim-rules { margin: 4px 0 0; padding-left: 18px; }
 .dim-rules li { margin: 2px 0; }
+.ws-menu-form { display: grid; gap: 8px; padding: 6px 8px 10px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+.ws-menu-form .s { font-size: 12.5px; color: var(--muted); }
+.ws-menu-form input { width: 100%; }
+.ws-menu { min-width: 300px; max-width: 320px; }
+/* The worker picker, like the model picker of the Claude app, and the red alert for a failure. */
+.ws-model { border: 1px solid var(--line); border-radius: 999px; padding: 5px 10px; background: var(--soft); color: var(--fg); font: inherit; font-size: 13px; max-width: 100%; }
+.ws-alert { margin: 10px 28px 0; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--pause-mark); background: var(--pause-bg); color: var(--fg); display: grid; gap: 10px; font-size: 14px; }
+.ws-alert .acts { display: flex; flex-wrap: wrap; gap: 8px; }
+/* The drift calculation of a checkpoint. */
+.ws-drift { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: grid; gap: 10px; margin: 6px 0 12px; background: var(--surface); }
+.ws-drift-eq { font-size: 14px; line-height: 1.5; }
+.ws-drift-eq .big { font: 600 22px var(--mono); margin-right: 2px; }
+.ws-drift-eq .hit { font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+.ws-drift-scale { position: relative; display: flex; height: 22px; border-radius: 6px; overflow: hidden; font-size: 11px; }
+.ws-drift-scale .seg { display: flex; align-items: center; padding: 0 6px; white-space: nowrap; overflow: hidden; color: var(--fg); }
+.ws-drift-scale .seg.ok { background: var(--ok-bg, var(--soft)); }
+.ws-drift-scale .seg.warn { background: var(--warn-bg); }
+.ws-drift-scale .seg.pause { background: var(--pause-bg); }
+.ws-drift-scale .pin { position: absolute; top: -2px; bottom: -2px; width: 3px; margin-left: -1px; background: var(--fg); border-radius: 2px; }
+.ws-drift .s { font-size: 13px; color: var(--muted); }
+.ws-how summary { cursor: pointer; font-size: 13px; color: var(--fg); }
+.ws-how ul { margin: 6px 0 0; padding-left: 18px; font-size: 13px; color: var(--muted); display: grid; gap: 4px; }
+.ws-box .ws-model { width: auto; flex: 0 1 auto; }

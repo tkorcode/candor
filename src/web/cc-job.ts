@@ -40,7 +40,16 @@ export interface CcJob {
   created: string;
   polls: number;
   fault: FaultName | null;
+  /** When the job ended. Its container is kept a while, so the reader can still restart from a checkpoint. */
+  endedAt?: number;
+  /** The container was destroyed after the restart window. */
+  containerGone?: boolean;
+  /** What the worker and the watcher have spent, as candord counts it. */
+  spent?: { worker: number; watcher: number };
 }
+
+/** How long after the end a restart is still possible. Then the job object destroys the container, so idle ones do not take the places of new jobs. */
+export const RESTART_WINDOW_MS = 10 * 60 * 1000;
 
 const newToken = () => Array.from(crypto.getRandomValues(new Uint8Array(24)), (b) => b.toString(16).padStart(2, "0")).join("");
 
@@ -80,7 +89,7 @@ export async function pollCc(job: CcJob, box: Box, kv?: { put(key: string, value
   job.polls += 1;
   const res = await box.fetch(`/state?after=${job.lines.length}`);
   if (res.status !== 200) throw new Error(String(res.body.error ?? `The container answered ${res.status}.`));
-  const s = res.body as { phase: string; lines: string[]; blobs: Record<string, string>; anchors: CcJob["anchors"]; files: Record<string, string>; daemon: { held?: { digest: string; summary: string; tool: string; approved: boolean }[]; paused?: boolean; pause_reason?: string } | null; log: string };
+  const s = res.body as { phase: string; lines: string[]; blobs: Record<string, string>; anchors: CcJob["anchors"]; files: Record<string, string>; daemon: { held?: { digest: string; summary: string; tool: string; approved: boolean }[]; paused?: boolean; pause_reason?: string; budget?: { spent_usd?: number }; watcher?: { spent_usd?: number } } | null; log: string };
   takeLines(job, s.lines ?? []);
   Object.assign(job.blobs, s.blobs ?? {});
   for (const a of s.anchors ?? []) {
@@ -91,6 +100,7 @@ export async function pollCc(job: CcJob, box: Box, kv?: { put(key: string, value
     await kv?.put(`anchor:${job.id}:${a.seq}`, canonicalJson(a), { expirationTtl: 30 * 86400 });
   }
   job.files = s.files ?? job.files;
+  if (s.daemon) job.spent = { worker: Number(s.daemon.budget?.spent_usd ?? 0), watcher: Number(s.daemon.watcher?.spent_usd ?? 0) };
   job.log = String(s.log ?? "").slice(-4000);
   const waiting = (s.daemon?.held ?? []).find((h) => !h.approved) ?? null;
   job.held = waiting ? { digest: waiting.digest, summary: waiting.summary, tool: waiting.tool } : null;
@@ -129,18 +139,31 @@ export async function finishCc(job: CcJob, box: Box, sign: (bytes: Uint8Array) =
   const end = job.lines.map((l) => JSON.parse(l) as LedgerEntry).findLast((e) => e.type === "run_end");
   job.status = job.status === "stopped" ? "stopped" : "done";
   job.statusReason = String((end?.body as { reason?: string } | undefined)?.reason ?? "The job ended.");
-  await box.destroy().catch(() => undefined);
+  // The container is not destroyed here: a restart from a checkpoint stays possible until it shuts itself down.
+  job.endedAt = Date.now();
 }
 
 /** Passes one decision of the reader to Candor in the container. */
-export async function actCc(job: CcJob, box: Box, action: Record<string, unknown>): Promise<void> {
-  // An ended job has no container. Calling it would start an empty one.
-  if (job.phase === "ended") throw new Error("The job has ended, so it takes no more decisions.");
+export async function actCc(job: CcJob, box: Box, action: Record<string, unknown>, now = Date.now()): Promise<void> {
+  if (job.phase === "ended") {
+    // After the end only a restart is taken, and only while the container is still there: calling a container that
+    // has shut down would start an empty one.
+    if (action.kind !== "restart") throw new Error("The job has ended. You can still restart it from a checkpoint.");
+    if (job.containerGone || !job.endedAt || now - job.endedAt > RESTART_WINDOW_MS) throw new Error("This job ended more than 10 minutes ago and its container has been shut down. Start a new job to try again.");
+  }
   const res = await box.fetch("/act", { method: "POST", body: action });
   if (res.status !== 200) throw new Error(String(res.body.error ?? `The container answered ${res.status}.`));
   if (action.kind === "stop" || action.kind === "deny") {
     job.status = "stopped";
     job.statusReason = action.kind === "deny" ? "You denied the held action, so the job stopped." : "You stopped the job.";
+  }
+  if (action.kind === "restart") {
+    // The job runs again on a new branch, and a new receipt covering every branch is signed when it ends.
+    job.phase = "running";
+    job.status = "running";
+    job.statusReason = `Restarting from ${String(action.from)} on a new branch.`;
+    job.receipt = null;
+    delete job.endedAt;
   }
 }
 
@@ -176,7 +199,9 @@ export function viewCc(job: CcJob) {
     checkpoints,
     pending: job.held ? { tool: job.held.tool, path: null, seq: entries.findLast((e) => e.type === "tool_intent" && (e.body as { decision?: string; summary?: string }).decision === "hold" && (e.body as { summary?: string }).summary === job.held?.summary)?.seq ?? 0, summary: job.held.summary } : null,
     receipt: job.receipt,
-    cost: { worker: 0, watcher: 0 },
+    cost: { worker: job.spent?.worker ?? 0, watcher: job.spent?.watcher ?? 0 },
+    // While a job runs, a restart is always possible; after the end, until the container is shut down.
+    restartableUntil: job.phase !== "ended" ? null : job.endedAt && !job.containerGone ? job.endedAt + RESTART_WINDOW_MS : 0,
     turns: entries.filter((e) => e.type === "tool_intent").length,
     log: job.log,
   };

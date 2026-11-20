@@ -1,6 +1,6 @@
 import { jobSigner } from "../hosted/sign.js";
 import type { HostConfig } from "../hosted/host.js";
-import { actCc, type Box, type CcJob, createCcJob, downloadCc, finishCc, pollCc, startCc, viewCc } from "./cc-job.js";
+import { actCc, type Box, type CcJob, createCcJob, downloadCc, finishCc, pollCc, RESTART_WINDOW_MS, startCc, viewCc } from "./cc-job.js";
 import type { JobState } from "../hosted/job.js";
 import { type JobStore, jobRoute, tick } from "./job-routes.js";
 
@@ -126,6 +126,15 @@ export class CandorJob {
   /** Moves a Claude Code job on: starts the container, copies the ledger, and ends the job. */
   private async ccAlarm(job: CcJob): Promise<void> {
     const storage = this.state.storage;
+    // After the restart window, the container of an ended job is destroyed.
+    if (job.receipt && job.endedAt && !job.containerGone) {
+      if (Date.now() - job.endedAt >= RESTART_WINDOW_MS) {
+        await this.box(job).destroy().catch(() => undefined);
+        job.containerGone = true;
+        await storage.put("cjob", job);
+      } else await storage.setAlarm(job.endedAt + RESTART_WINDOW_MS + 1000);
+      return;
+    }
     try {
       const box = this.box(job);
       if (job.phase === "starting") await startCc(job, box);
@@ -149,6 +158,7 @@ export class CandorJob {
     if (job.status !== "held" && job.status !== "paused") await storage.put("touched", Date.now());
     await storage.put("cjob", job);
     if (!job.receipt && job.status !== "failed") await storage.setAlarm(Date.now() + (job.phase === "starting" ? 5000 : 3000));
+    else if (job.receipt && job.endedAt) await storage.setAlarm(job.endedAt + RESTART_WINDOW_MS + 1000);
   }
 
   async alarm(): Promise<void> {

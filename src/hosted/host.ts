@@ -73,7 +73,7 @@ export async function advance(job: JobState, config: HostConfig, maxMs = 20_000,
   for (let i = 0; i < maxTurns && job.status === "running" && Date.now() < until; i += 1) await step(job, deps);
 }
 
-export type Action = { kind: "approve" } | { kind: "deny" } | { kind: "continue" } | { kind: "stop" } | { kind: "rule"; dimension: "goal" | "scope" | "plan" | "evidence"; text: string } | { kind: "restart"; from: string; reason: string };
+export type Action = { kind: "approve" } | { kind: "deny" } | { kind: "continue" } | { kind: "stop" } | { kind: "rule"; dimension: "goal" | "scope" | "plan" | "evidence"; text: string } | { kind: "restart"; from: string; reason: string; dimension?: "goal" | "scope" | "plan" | "evidence" };
 
 export async function act(job: JobState, config: HostConfig, action: Action): Promise<void> {
   const deps = await depsFor(job, config);
@@ -89,8 +89,8 @@ export async function act(job: JobState, config: HostConfig, action: Action): Pr
       if (typeof action.text !== "string" || action.text.trim().length < 5) throw new Error("A rule needs at least five characters.");
       return addRule(job, deps, { dimension: action.dimension, text: action.text });
     case "restart":
-      if (typeof action.reason !== "string" || action.reason.trim().length < 5) throw new Error("Say why you restart, in at least five characters. The reason becomes a rule.");
-      return restartFrom(job, deps, action.from, action.reason);
+      if (typeof action.reason !== "string" || action.reason.trim().length < 5) throw new Error("Write the rule for the new branch, in at least five characters.");
+      return restartFrom(job, deps, action.from, action.reason, action.dimension);
   }
 }
 

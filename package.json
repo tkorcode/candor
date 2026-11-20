@@ -18,6 +18,7 @@
     "lint": "biome lint .",
     "test": "vitest run",
     "deps:check": "node scripts/deps.mjs --check",
+    "projects:render": "node scripts/projects-render.mjs",
     "deps:render": "node scripts/deps.mjs --write",
     "eval": "npm run build && node dist/bench/run-eval.js",
     "check": "npm run typecheck && npm run lint && npm run deps:check && npm run test",

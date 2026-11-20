@@ -13,12 +13,12 @@ Alternatives considered:
 What it costs or leaves open:
 ```
 
-## D-099: The worker is told the rules a person set, and a reader can add points of their own
+## D-099: The worker is told the rules a person set, and a reader can add success criteria of their own
 Date: 2026-11-19
-Decision: `candor run` gives Claude Code the rules a person set or approved from the start of the job, as a restart already did (`toldRules` in `src/cli/run.ts`). Rules drafted from the charter itself are still only scored. On the workspace a reader can add a point in their own words. No check can test it, so the receipt lists it as not claimed, and it becomes a goal rule the watcher scores at every checkpoint. The draft model writes such points from what the reader typed.
+Decision: `candor run` gives Claude Code the rules a person set or approved from the start of the job, as a restart already did (`toldRules` in `src/cli/run.ts`). Rules drafted from the charter itself are still only scored. On the workspace a reader can add a success criterion in their own words. No check can test it, so the receipt lists it as not claimed, and it becomes a goal rule the watcher scores at every checkpoint. The draft model writes such criteria from what the reader typed.
 Why: A worker scored against rules it was never told is set up to drift, and a reader whose requirement had no check had no way to put it in the charter at all.
 Alternatives considered: Keeping the rules from the worker so drift is measured blind, which only measures whether the worker guesses them. Dropping a requirement no check can test, which hides it.
-What it costs or leaves open: A point is scored by the watcher, which is evidence, not a verified result. A rule added while the job runs reaches the worker when it resumes after a pause, not at once.
+What it costs or leaves open: Such a criterion is scored by the watcher, which is evidence, not a verified result. A rule added while the job runs reaches the worker when it resumes after a pause, not at once.
 
 ## D-098: The charter a reader approves is the charter the job runs
 Date: 2026-11-19

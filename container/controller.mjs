@@ -140,7 +140,8 @@ async function act(body) {
       job.child.kill("SIGINT");
       await new Promise((r) => setTimeout(r, 1500));
     }
-    drive(["restart", from, "--run", job.run, "--reason", String(body.reason ?? "Restarted by the reader."), "--model", job.model, "--wait-approval", "10"]);
+    const dimension = ["goal", "scope", "plan", "evidence"].includes(body.dimension) ? ["--dimension", body.dimension] : [];
+    drive(["restart", from, "--run", job.run, "--reason", String(body.reason ?? "Restarted by the reader."), ...dimension, "--model", job.model, "--wait-approval", "10"]);
     return { restarted: from };
   }
   throw new Error(`Unknown action ${kind}.`);

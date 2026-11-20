@@ -175,3 +175,13 @@ body.ws { overflow: hidden; }
 .ws-kind { color: var(--muted); font-size: 13px; }
 .dim.sets { border-left: 3px solid var(--fg); }
 .dim-count { margin-left: 8px; font-size: 11px; font-weight: 600; color: var(--warn); }
+.ws-sub { font-size: 13px; margin: 16px 0 2px; }
+/* One type scale inside the charter sections: text 13.5px, field labels and notes 12.5px. */
+.ws-sec { font-size: 13.5px; }
+.ws-sec .note, .ws-sec .sub { font-size: 12.5px; }
+.ws-sec button, .ws-sec select, .ws-sec input, .ws-sec textarea { font-family: inherit; font-size: 13.5px; }
+.ws-sec label:has(> input[type="checkbox"]), .ws-sec .ws-hold, .ws-sec .ws-crit { font-size: 13.5px; color: var(--fg); }
+.ws-sec button.link { font-weight: 400; }
+.ws-sec .badge { font-size: 11px; }
+.ws-menu-rule { display: grid; grid-template-columns: 96px 1fr; gap: 6px; }
+.ws-menu-rule select { font: inherit; font-size: 13px; }

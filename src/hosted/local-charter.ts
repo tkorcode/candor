@@ -27,7 +27,7 @@ export function localCharter(hosted: Charter, input: { checks?: Record<string, b
   const checks = hosted.checks.map((c) => (c.type === "command" && c.run?.startsWith("hosted:") ? { ...c, run: `${CHECK_CLI} run ${c.id}`, fault: `${CHECK_CLI} fault ${c.id}` } : c));
   const running = runningOn.map((c) => ({ id: c.id, type: "command" as const, run: c.run, when: "checkpoint" as const, fault: `${CHECK_CLI} fault ${c.id}` }));
   const success = [
-    ...hosted.success.filter((s) => s.check !== null || !/behaviour/i.test(s.text)),
+    ...hosted.success.filter((s) => s.id !== "s6"),
     ...RUNNING_CHECKS.map((c, i) => ({ id: `s-run-${i + 1}`, text: c.text, check: runningOn.includes(c) ? c.id : null })),
   ];
   const stages = hosted.stages.map((s, i) => (s.id === "switch" || i === hosted.stages.length - 1 ? { ...s, exit_checks: [...s.exit_checks, ...runningOn.map((c) => c.id)] } : s));

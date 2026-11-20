@@ -488,11 +488,19 @@ function charterEditor(el) {
 
   const crit = charter.success.map((s) => {
     const builtIn = s.check && !s.check.startsWith("custom-");
+    const own = /^s-own-(\d+)$/.exec(s.id);
+    if (own) {
+      const at = Number(own[1]) - 1;
+      return h("div", { class: "ws-crit" }, h("span", { class: "t" }, s.text), h("span", { class: "badge", title: "No check tests this, so the receipt does not claim it. The watcher scores it on goal at every checkpoint." }, "not claimed · the watcher scores it"), h("button", { class: "ws-x", type: "button", title: "Remove this point", onclick: () => set((i) => (i.criteria = (i.criteria ?? []).filter((_, k) => k !== at))) }, "×"));
+    }
     return h("div", { class: "ws-crit" }, h("span", { class: "t" }, s.text), s.check ? h("span", { class: "badge strong", title: RUNS_CODE.has(s.check) ? "This check runs the code in the job's container. It failed on its planted fault, so it can fail." : "This check failed on its planted fault, so it can fail." }, RUNS_CODE.has(s.check) ? "strong check · runs the code" : "strong check") : h("span", { class: "badge", title: "Nothing checks this, so the receipt will not claim it." }, "not claimed"), builtIn ? h("button", { class: "ws-x", type: "button", title: "Turn this check off", onclick: () => set((i) => (i.checks = { ...(i.checks ?? {}), [s.check]: false })) }, "×") : null);
   });
   const off = Object.entries(input.checks ?? {}).filter(([, v]) => v === false).map(([k]) => k);
   const customPaths = h("input", { type: "text", placeholder: "src/**", "aria-label": "Paths of a new check" });
   const customText = h("input", { type: "text", placeholder: "require(", "aria-label": "Text that must not appear" });
+  const point = h("input", { type: "text", placeholder: "The README says the service is on ES modules.", "aria-label": "A point the job must meet" });
+  const addPoint = () => point.value.trim().length >= 5 && set((i) => (i.criteria = [...(i.criteria ?? []), point.value.trim()]));
+  point.addEventListener("keydown", (e) => e.key === "Enter" && addPoint());
 
   const rules = (input.rules ?? []).map((r, i) => {
     const dim = h("select", { "aria-label": "Dimension" }, DIMENSIONS.map((d) => h("option", { value: d, selected: d === r.dimension ? true : null }, d)));
@@ -566,7 +574,7 @@ function charterEditor(el) {
   put(el, 
     h("p", { style: "margin:0 0 12px" }, h("b", {}, "Check your charter. "), "This is what Candor holds the job to. Change what is wrong, then approve it. Candor writes it to .candor/charter.md in the project."),
     sec(1, "Goal", "What must be true at the end.", goal),
-    sec(2, "Done when", "Each line is a success criterion. A strong check failed on a planted fault, so it can fail. A line with no check is not claimed by the receipt.", ...crit, off.length ? h("p", { class: "note" }, `Turned off: ${off.join(", ")}. `, h("button", { class: "link", type: "button", onclick: () => set((i) => (i.checks = {})) }, "Turn all back on")) : null, h("label", {}, "Add a check: no file under these paths contains this text", h("div", { class: "ws-pairs" }, customPaths, customText)), h("button", { class: "btn", type: "button", style: "margin-top:6px", onclick: () => customText.value.trim() && set((i) => (i.custom_checks = [...(i.custom_checks ?? []), { paths: (customPaths.value || "src/**").split(",").map((x) => x.trim()), text: customText.value.trim() }])) }, "Add check")),
+    sec(2, "Done when", "Each line is a success criterion. A strong check failed on a planted fault, so it can fail. A line with no check is not claimed by the receipt.", ...crit, off.length ? h("p", { class: "note" }, `Turned off: ${off.join(", ")}. `, h("button", { class: "link", type: "button", onclick: () => set((i) => (i.checks = {})) }, "Turn all back on")) : null, h("label", {}, "Add a check: no file under these paths contains this text", h("div", { class: "ws-pairs" }, customPaths, customText)), h("button", { class: "btn", type: "button", style: "margin-top:6px", onclick: () => customText.value.trim() && set((i) => (i.custom_checks = [...(i.custom_checks ?? []), { paths: (customPaths.value || "src/**").split(",").map((x) => x.trim()), text: customText.value.trim() }])) }, "Add check"), h("label", { style: "margin-top:12px" }, "Add a point in your own words", point), h("button", { class: "btn", type: "button", style: "margin-top:6px", onclick: addPoint }, "Add point"), h("p", { class: "note" }, "A point no check can test. The receipt does not claim it, and the watcher scores every checkpoint against it.")),
     sec(3, "Rules the watcher scores against", "Plain sentences. A separate Claude model with no tools scores every checkpoint against them, on goal, scope, plan and evidence.", ...rules, h("button", { class: "link", type: "button", style: "margin-top:8px", onclick: () => set((i) => (i.rules = [...(i.rules ?? []), { dimension: "scope", text: "" }])) }, "+ Add a rule")),
     sec(4, "Scope", "Candor checks every write and delete against these before it happens.", list("allow", "May change"), list("deny", "May never change")),
     sec(5, "Needs your approval", "These wait for you. A checkpoint is taken first, so the files can be restored.", ...holds, ...ownRows, h("label", {}, "Add something that waits for you", holdAdd), h("button", { class: "btn", type: "button", style: "margin-top:6px", onclick: addHold }, "Add"), holdNote),

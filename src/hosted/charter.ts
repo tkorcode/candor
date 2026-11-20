@@ -31,6 +31,8 @@ export interface CharterInput {
   max_cost_usd?: number;
   checks?: Record<string, boolean>;
   custom_checks?: { paths: string[]; text: string }[];
+  /** Points the job must meet that no check can test. The receipt does not claim them, and the watcher scores them on goal. */
+  criteria?: string[];
 }
 
 export const DEFAULTS = {
@@ -72,6 +74,7 @@ export function buildCharter(input: CharterInput = {}, version = 1): Charter {
   const builtIn = CHECKS.filter((c) => enabled(c.id)).map((c) => ({ id: c.id, type: "command" as const, run: `hosted:${c.id}`, when: "checkpoint" as const, fault: `hosted:${c.id}` }));
   const ids = new Set(builtIn.map((c) => c.id));
   const rules = (input.rules ?? DEFAULTS.rules).filter((r) => r && ["goal", "scope", "plan", "evidence"].includes(r.dimension) && typeof r.text === "string" && r.text.trim().length >= 5).slice(0, 12);
+  const criteria = (input.criteria ?? []).filter((t) => typeof t === "string" && t.trim().length >= 5).map((t) => t.trim().slice(0, 200)).slice(0, 8);
   const warn = clamp(input.warn, 0.05, 0.95, DEFAULTS.warn);
   const pause = clamp(input.pause, 0.1, 1, DEFAULTS.pause);
   return parseCharter({
@@ -81,12 +84,16 @@ export function buildCharter(input: CharterInput = {}, version = 1): Charter {
     success: [
       ...SUCCESS.map((s) => ({ ...s, check: s.check && ids.has(s.check) ? s.check : null })),
       ...custom.map((c, i) => ({ id: `s-custom-${i + 1}`, text: `No file under ${c.paths.join(", ")} contains "${c.deny}".`, check: c.id })),
+      ...criteria.map((text, i) => ({ id: `s-own-${i + 1}`, text, check: null })),
     ],
     scope: { allow_paths: clean(input.allow, DEFAULTS.allow), deny_paths: clean(input.deny, DEFAULTS.deny), allow_commands: [], network: false },
     budget: { max_cost_usd: clamp(input.max_cost_usd, 0.05, 5, DEFAULTS.max_cost_usd), max_turns: Math.round(clamp(input.max_turns, 10, 200, DEFAULTS.max_turns)), max_minutes: 30 },
     stages: STAGES.map((s, i) => ({ id: s.id, title: s.title, description: s.description, exit_checks: [...s.checks.filter((c) => ids.has(c)), ...(i === STAGES.length - 1 ? custom.map((c) => c.id) : [])], ...(s.id === "switch" ? { irreversible: true } : {}) })),
     checks: [...builtIn, ...custom],
-    drift_rules: rules.map((r, i) => ({ id: `${r.dimension}-${i + 1}`, dimension: r.dimension, source: "operator" as const, text: r.text.trim().slice(0, 300) })),
+    drift_rules: [
+      ...rules.map((r, i) => ({ id: `${r.dimension}-${i + 1}`, dimension: r.dimension, source: "operator" as const, text: r.text.trim().slice(0, 300) })),
+      ...criteria.map((text, i) => ({ id: `done-${i + 1}`, dimension: "goal" as const, source: "operator" as const, text: `The job is done only when this holds: ${text}` })),
+    ],
     thresholds: { warn: Math.min(warn, pause - 0.05), pause },
     irreversible: clean(input.hold, DEFAULTS.hold),
     escalation: { on_pause: "operator" },

@@ -45,3 +45,19 @@ describe("the charter a Claude Code job runs", () => {
     expect(unenforced).toEqual(["write_file package.json"]);
   });
 });
+
+describe("points and rules a reader adds", () => {
+  it("lists a point in the reader's own words as not claimed, and has the watcher score it on goal", () => {
+    const { charter } = charterFor({ criteria: ["The README says the service is on ES modules."] }, "claude-code");
+    expect(charter.success.find((s) => s.text === "The README says the service is on ES modules.")).toMatchObject({ check: null });
+    expect(charter.drift_rules.find((r) => r.id === "done-1")).toMatchObject({ dimension: "goal", source: "operator" });
+  });
+
+  it("tells Claude Code the rules a person set, from the start of the job", async () => {
+    const { toldRules, workerPrompt } = await import("../cli/run.js");
+    const { charter } = charterFor({ rules: [{ dimension: "scope", text: "Never change README.md." }], criteria: ["The README is unchanged."] }, "claude-code");
+    const prompt = workerPrompt({ goal: charter.goal, stages: charter.stages, allowPaths: charter.scope.allow_paths, allowCommands: charter.scope.allow_commands, network: false, rules: toldRules(charter) });
+    expect(prompt).toContain("- Never change README.md.");
+    expect(prompt).toContain("The job is done only when this holds: The README is unchanged.");
+  });
+});

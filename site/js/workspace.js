@@ -166,7 +166,6 @@ const charterNow = () => state.job?.charters.at(-1) ?? state.draft?.charter ?? n
 
 // ---- drawing ------------------------------------------------------------------------------------------------
 
-const QUESTION = { goal: "Does the work serve the goal?", scope: "Does it stay inside the scope?", plan: "Does it follow the plan?", evidence: "Are its claims backed by the record?" };
 
 const workerOf = (job) => (job.worker === "claude-code" ? "claude-code" : job.mode === "live" ? "api" : "scripted");
 const WORKER_LABEL = {
@@ -731,9 +730,9 @@ function paneRun(el) {
       // The pane is drawn again on every update, so whether a dimension is open is kept per checkpoint.
       const sets = d === top[0] && v > 0;
       const row = h("details", { class: `dim${sets ? " sets" : ""}` },
-        h("summary", {}, h("div", { class: "dim-row" }, h("div", {}, h("div", { class: "dim-name" }, d[0].toUpperCase() + d.slice(1), own.length ? h("span", { class: "dim-count" }, own.length === 1 ? "1 finding" : `${own.length} findings`) : null), h("div", { class: "dim-q" }, sets ? "Sets the score" : QUESTION[d])), h("span", { class: "track" }, h("span", { class: "fill", style: `width:${Math.round(v * 100)}%;background:var(--${dl === "ok" ? "ok" : dl}-mark)` }), h("span", { class: "tick", style: `left:${t.warn * 100}%` }), h("span", { class: "tick", style: `left:${t.pause * 100}%` })), h("span", { class: "dim-v" }, fmt(v)))),
+        h("summary", {}, h("div", { class: "dim-row" }, h("div", {}, h("div", { class: "dim-name" }, d[0].toUpperCase() + d.slice(1), own.length ? h("span", { class: "dim-count" }, own.length === 1 ? "1 finding" : `${own.length} findings`) : null), sets ? h("div", { class: "dim-q" }, "Sets the score") : null), h("span", { class: "track" }, h("span", { class: "fill", style: `width:${Math.round(v * 100)}%;background:var(--${dl === "ok" ? "ok" : dl}-mark)` }), h("span", { class: "tick", style: `left:${t.warn * 100}%` }), h("span", { class: "tick", style: `left:${t.pause * 100}%` })), h("span", { class: "dim-v" }, fmt(v)))),
         ...own.map(finding),
-        own.length ? null : h("div", { class: "dim-body" }, h("div", {}, "The watcher found nothing against these rules here.")),
+        own.length ? null : h("div", { class: "dim-body" }, h("div", {}, "No findings.")),
         h("div", { class: "dim-body" }, h("div", {}, h("div", { class: "k" }, rules.length === 1 ? "The rule" : "The rules"), rules.length ? h("ul", { class: "dim-rules" }, rules.map((r) => h("li", {}, r.text))) : h("div", { class: "note" }, "No rule on this dimension."))),
       );
       dims.append(keep(row, `${cp.id}:${d}`, own.length > 0));

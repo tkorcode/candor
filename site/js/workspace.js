@@ -379,7 +379,7 @@ function drawStream() {
   if (!j) {
     if (!state.draft) {
       put(el, 
-        h("div", { class: "ws-empty ws-guide" }, h("h1", {}, "Getting started"),
+        h("div", { class: "ws-empty ws-guide" }, h("p", { class: "ws-tagline" }, "Candor watches a long Claude Code job, lets you step in, and ends with a signed trust receipt."), h("h1", {}, "Getting started"),
           h("ol", {},
             h("li", {}, h("b", {}, "Describe the job. "), "For example: ", h("i", {}, SUGGESTED)),
             h("li", {}, h("b", {}, "Draft the charter. "), "Candor writes the goal, success criteria, rules, scope and approval steps."),

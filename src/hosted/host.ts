@@ -116,7 +116,9 @@ export function charterFor(input: CharterInput, worker?: string) {
 }
 
 export async function draft(goal: string, config: HostConfig, options: { worker?: string; plain?: boolean } = {}) {
-  let input: CharterInput = { ...DEFAULTS, goal };
+  // The budget is left unset, so the chosen worker's default applies until the reader sets one.
+  const { max_cost_usd: _budget, ...defaults } = DEFAULTS;
+  let input: CharterInput = { ...defaults, goal };
   let drafted_by = "defaults";
   if (config.apiKey && !options.plain) {
     try {

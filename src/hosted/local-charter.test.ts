@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { charterFor } from "./host.js";
+import { charterFor, draft } from "./host.js";
 
 describe("the charter a Claude Code job runs", () => {
   it("keeps what the reader set: goal, rules, scope, levels, budget and checks turned off", () => {
@@ -32,6 +32,11 @@ describe("the charter a Claude Code job runs", () => {
   it("gives a Claude Code job a larger budget only when the reader set none", () => {
     expect(charterFor({}, "claude-code").charter.budget.max_cost_usd).toBe(3);
     expect(charterFor({}, "api").charter.budget.max_cost_usd).toBe(1);
+  });
+
+  it("gives the default charter the budget of the chosen worker", async () => {
+    expect((await draft("Move to ES modules.", {}, { worker: "claude-code", plain: true })).charter.budget.max_cost_usd).toBe(3);
+    expect((await draft("Move to ES modules.", {}, { worker: "api", plain: true })).charter.budget.max_cost_usd).toBe(1);
   });
 
   it("holds a deletion as rm and git rm, and says a held write is not enforced", () => {

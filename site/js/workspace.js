@@ -13,7 +13,7 @@ import { verifyChain, verifyReceiptSignature } from "./verify.js";
 const $ = (id) => document.getElementById(id);
 /** Appends children, leaving out the empty ones, as h() does. */
 const put = (el, ...nodes) => el.append(...nodes.flat().filter((n) => n !== null && n !== undefined && n !== false));
-const state = { draft: null, input: null, files: {}, review: [], job: null, tab: "run", selected: null, open: null, polling: 0, seeded: false, fault: "", live: true, worker: "api", workers: { claude_code: false, live: false }, openDims: {}, projects: [], project: "invoices", page: null, busy: false, error: "" };
+const state = { draft: null, input: null, files: {}, review: [], job: null, tab: "run", selected: null, open: null, polling: 0, seeded: false, fault: "", live: true, worker: "api", workers: { claude_code: false, live: false }, openDims: {}, projects: [], project: "invoices", page: null, filesOpen: false, busy: false, error: "" };
 const SUGGESTED = "Move the invoices service from CommonJS to ES modules, with no change to its public functions.";
 const HOLDS = [
   { value: "delete_file *", label: "Deleting any file" },
@@ -205,7 +205,15 @@ function draw() {
 function drawTree() {
   // The files of the selected project. Only invoices runs here, so only its files change during a job.
   const project = state.projects.find((x) => x.id === state.project);
-  $("tree-head").textContent = `Files of ${project?.name ?? "invoices"}`;
+  // The files sit at the bottom of the pane, closed until the reader opens them.
+  const head = $("tree-head");
+  head.textContent = `${state.filesOpen ? "▾" : "▸"} Files`;
+  head.setAttribute("aria-expanded", String(state.filesOpen));
+  head.onclick = () => {
+    state.filesOpen = !state.filesOpen;
+    drawTree();
+  };
+  $("tree").hidden = !state.filesOpen;
   if (state.project !== "invoices" && project) {
     drawProjectFiles(project);
     return;
@@ -300,11 +308,17 @@ const PROJECT_STATUS = {
 /** The projects in the left pane. The one that runs here also lists its files below it. */
 function drawProjects() {
   const el = clear($("projects"));
-  for (const p of state.projects) {
+  // Only the projects with something to open are listed; the planned ones are named below, greyed out.
+  for (const p of state.projects.filter((x) => x.status !== "charter")) {
     const [cls, label, why] = PROJECT_STATUS[p.status] ?? PROJECT_STATUS.charter;
-    put(el, h("li", {}, h("button", { type: "button", title: why, "aria-current": state.project === p.id ? "true" : "false", onclick: () => openProject(p.id) }, h("span", { class: "n" }, p.name), h("span", { class: "k" }, p.kind), h("span", { class: `chip ${cls}` }, label))));
+    put(el, h("li", {}, h("button", { type: "button", title: why, "aria-current": state.project === p.id ? "true" : "false", onclick: () => openProject(p.id) }, h("span", { class: "n" }, p.name), h("span", { class: `chip ${cls}` }, label))));
   }
+  const planned = clear($("planned"));
+  for (const name of PLANNED) put(planned, h("li", {}, name));
 }
+
+/** Long jobs Candor is meant for, not built yet. */
+const PLANNED = ["Framework version upgrade", "Large code migration", "Security patch rollout", "Month-end reconciliation"];
 
 /** A page for one project: what it helps test, how to run it, and code samples taken from its files. */
 function openProject(id) {

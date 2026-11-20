@@ -14,7 +14,7 @@ const $ = (id) => document.getElementById(id);
 /** Appends children, leaving out the empty ones, as h() does. */
 const put = (el, ...nodes) => el.append(...nodes.flat().filter((n) => n !== null && n !== undefined && n !== false));
 const state = { draft: null, input: null, files: {}, review: [], job: null, tab: "run", selected: null, open: null, polling: 0, seeded: false, fault: "", live: true, worker: "api", workers: { claude_code: false, live: false }, openDims: {}, projects: [], project: "invoices", page: null, filesOpen: false, busy: false, error: "" };
-const SUGGESTED = "Move the invoices service to the newer JavaScript module system. Keep its public functions the same. Do not change legacy/.";
+const SUGGESTED = "Move the invoices service to the newer JavaScript module system. Keep its public functions the same. Do not change the legacy folder.";
 const HOLDS = [
   { value: "delete_file *", label: "Deleting any file" },
   { value: "write_file package.json", label: "Writing package.json" },

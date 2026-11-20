@@ -13,7 +13,7 @@ import { verifyChain, verifyReceiptSignature } from "./verify.js";
 const $ = (id) => document.getElementById(id);
 /** Appends children, leaving out the empty ones, as h() does. */
 const put = (el, ...nodes) => el.append(...nodes.flat().filter((n) => n !== null && n !== undefined && n !== false));
-const state = { draft: null, input: null, files: {}, review: [], job: null, tab: "run", selected: null, open: null, polling: 0, seeded: false, fault: "", live: true, worker: "api", workers: { claude_code: false, live: false }, openDims: {}, projects: [], page: null, busy: false, error: "" };
+const state = { draft: null, input: null, files: {}, review: [], job: null, tab: "run", selected: null, open: null, polling: 0, seeded: false, fault: "", live: true, worker: "api", workers: { claude_code: false, live: false }, openDims: {}, projects: [], project: "invoices", page: null, busy: false, error: "" };
 const SUGGESTED = "Move the invoices service from CommonJS to ES modules, with no change to its public functions.";
 const HOLDS = [
   { value: "delete_file *", label: "Deleting any file" },
@@ -201,6 +201,11 @@ function draw() {
 }
 
 function drawTree() {
+  // Only invoices has files here, so they show only while it is the selected project.
+  const shown = state.project === "invoices";
+  $("tree").hidden = !shown;
+  $("tree-head").hidden = !shown;
+  if (!shown) return;
   const files = state.job?.files ?? (state.draft ? { ...state.files, ".candor/charter.md": state.draft.markdown } : state.files);
   const original = state.job?.original ?? state.files;
   const deny = charterNow()?.scope.deny_paths ?? [];
@@ -224,6 +229,7 @@ function drawTree() {
 function openFile(path) {
   state.open = state.open === path ? null : path;
   state.page = null;
+  state.project = "invoices";
   drawProjects();
   const v = $("viewer");
   if (!state.open) {
@@ -246,20 +252,26 @@ function openFile(path) {
 
 // ---- the projects --------------------------------------------------------------------------------------------
 
-const PROJECT_STATUS = { here: ["ok", "runs here"], machine: ["warn", "on your machine"], charter: ["", "charter only"] };
+const PROJECT_STATUS = {
+  here: ["ok", "try it here", "Runs in this workspace, with Claude Code doing the work."],
+  machine: ["warn", "recorded runs", "Live runs of it are recorded on the site. To run it yourself, use candor run on your own computer."],
+  charter: ["", "planned", "Its charter is written. The project itself is not built yet."],
+};
 
 /** The projects in the left pane. The one that runs here also lists its files below it. */
 function drawProjects() {
   const el = clear($("projects"));
   for (const p of state.projects) {
-    const [cls, label] = PROJECT_STATUS[p.status] ?? PROJECT_STATUS.charter;
-    put(el, h("li", {}, h("button", { type: "button", "aria-current": state.page === p.id ? "true" : "false", onclick: () => openProject(p.id) }, h("span", { class: "n" }, p.name), h("span", { class: "k" }, p.kind), h("span", { class: `chip ${cls}` }, label))));
+    const [cls, label, why] = PROJECT_STATUS[p.status] ?? PROJECT_STATUS.charter;
+    put(el, h("li", {}, h("button", { type: "button", title: why, "aria-current": state.project === p.id ? "true" : "false", onclick: () => openProject(p.id) }, h("span", { class: "n" }, p.name), h("span", { class: "k" }, p.kind), h("span", { class: `chip ${cls}` }, label))));
   }
 }
 
 /** A page for one project: what it helps test, how to run it, and code samples taken from its files. */
 function openProject(id) {
+  // Clicking the open project again closes its page and keeps it selected.
   state.page = state.page === id ? null : id;
+  state.project = id;
   state.open = null;
   const v = $("viewer");
   const p = state.projects.find((x) => x.id === state.page);
@@ -269,14 +281,14 @@ function openProject(id) {
     v.hidden = true;
     return;
   }
-  const [cls, label] = PROJECT_STATUS[p.status] ?? PROJECT_STATUS.charter;
+  const [cls, label, why] = PROJECT_STATUS[p.status] ?? PROJECT_STATUS.charter;
   const close = () => openProject(p.id);
   const start = () => {
     close();
     $("composer").querySelector("textarea")?.focus();
   };
   clear(v).append(
-    h("div", { class: "ws-top", style: "padding:0 0 10px;border:0" }, h("b", {}, p.name), h("span", { class: "ws-kind" }, p.kind), h("span", { class: `chip ${cls}` }, label), h("span", { class: "grow" }), h("button", { class: "btn", type: "button", onclick: close }, "Close")),
+    h("div", { class: "ws-top", style: "padding:0 0 10px;border:0" }, h("b", {}, p.name), h("span", { class: "ws-kind" }, p.kind), h("span", { class: `chip ${cls}`, title: why }, label), h("span", { class: "grow" }), h("button", { class: "btn", type: "button", onclick: close }, "Close")),
     h("div", { class: "ws-page" },
       h("p", { class: "lead" }, p.summary),
       h("p", { class: "ws-page-status" }, p.status_text),

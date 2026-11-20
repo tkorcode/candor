@@ -379,7 +379,7 @@ function drawStream() {
   if (!j) {
     if (!state.draft) {
       put(el, 
-        h("div", { class: "ws-empty ws-guide" }, h("h1", {}, "Getting started"),
+        h("div", { class: "ws-empty ws-guide" }, h("p", { class: "ws-tagline" }, "Candor watches a long Claude Code job, lets you step in, and ends with a signed trust receipt."), h("h1", {}, "Getting started"),
           h("ol", {},
             h("li", {}, h("b", {}, "Describe the job. "), "For example: ", h("i", {}, SUGGESTED)),
             h("li", {}, h("b", {}, "Draft the charter. "), "Candor writes the goal, success criteria, rules, scope and approval steps."),
@@ -810,8 +810,8 @@ async function paneLedger(el) {
   // Who wrote each entry, in plain words. The daemon sets this field, never the caller.
   const BY = { operator: "you", candord: "Candor", worker: "worker", watcher: "watcher" };
   // The time in the reader's own clock; the exact UTC time is on hover.
-  const time = (ts) => (ts ? new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "");
-  put(el, h("div", { class: "tablewrap" }, h("table", {}, h("thead", {}, h("tr", {}, h("th", {}, "#"), h("th", {}, "Time"), h("th", {}, "By"), h("th", {}, "Event"))), h("tbody", {}, rows.map((e) => h("tr", {}, h("td", { class: "mono" }, String(e.seq)), h("td", { class: "mono", title: e.ts ?? "" }, time(e.ts)), h("td", { title: e.actor }, BY[e.actor] ?? e.actor), h("td", {}, describe(e))))))));
+  const time = (ts) => (ts ? new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }) : "");
+  put(el, h("div", { class: "tablewrap" }, h("table", {}, h("thead", {}, h("tr", {}, h("th", {}, "#"), h("th", {}, "Time"), h("th", {}, "By"), h("th", {}, "Event"))), h("tbody", {}, rows.map((e) => h("tr", {}, h("td", { class: "mono" }, String(e.seq)), h("td", { class: "mono", style: "white-space:nowrap", title: e.ts ?? "" }, time(e.ts)), h("td", { title: e.actor }, BY[e.actor] ?? e.actor), h("td", {}, describe(e))))))));
   // The view returns the entries parsed. Their canonical JSON is the stored line, so the chain is checked on it.
   const lines = j.entries.map((e) => canonicalLine(e));
   const result = await verifyChain(lines);
